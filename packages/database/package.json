@@ -1,0 +1,23 @@
+{
+    "name": "@link-radar/database",
+    "version": "1.0.0",
+    "private": true,
+    "type": "module",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        }
+    },
+    "scripts": {
+        "build": "tsc"
+    },
+    "devDependencies": {
+        "@types/pg": "^8.21.0"
+    },
+    "dependencies": {
+        "dotenv": "^17.4.2"
+    }
+}

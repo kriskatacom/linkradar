@@ -1,0 +1,16 @@
+services:
+    postgres:
+        image: postgres:17
+        container_name: link-radar-postgres
+        restart: unless-stopped
+        environment:
+            POSTGRES_DB: link_radar
+            POSTGRES_USER: link_radar
+            POSTGRES_PASSWORD: link_radar
+        ports:
+            - "5432:5432"
+        volumes:
+            - link_radar_postgres:/var/lib/postgresql/data
+
+volumes:
+    link_radar_postgres:
