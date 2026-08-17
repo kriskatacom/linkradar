@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1787009375162,
+      "tag": "0000_create_users_auth_sessions_and_social_accounts",
+      "breakpoints": true
+    }
+  ]
+}

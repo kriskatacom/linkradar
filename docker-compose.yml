@@ -1,16 +1,16 @@
 services:
-    postgres:
-        image: postgres:17
-        container_name: link-radar-postgres
+    mysql:
+        image: mysql:8.4
+        container_name: link-radar-mysql
         restart: unless-stopped
         environment:
-            POSTGRES_DB: link_radar
-            POSTGRES_USER: link_radar
-            POSTGRES_PASSWORD: link_radar
+            MYSQL_DATABASE: linkradar
+            MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
         ports:
-            - "5432:5432"
+            - "3306:3306"
         volumes:
-            - link_radar_postgres:/var/lib/postgresql/data
+            - link_radar_mysql:/var/lib/mysql
+        command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
 
 volumes:
-    link_radar_postgres:
+    link_radar_mysql:
