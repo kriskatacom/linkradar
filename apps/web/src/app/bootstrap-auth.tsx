@@ -2,6 +2,7 @@ import { useEffect } from "react";
 
 import { authApi } from "@/features/auth/api/authApi";
 import { clearAuth, setInitialized } from "@/features/auth/authSlice";
+import { WorkspaceBootstrap } from "@/features/workspaces/workspace-bootstrap";
 import { useAppDispatch, useAppSelector } from "@/hooks/redux";
 
 export function AuthBootstrap({ children }: { children: React.ReactNode }) {
@@ -43,5 +44,5 @@ export function AuthBootstrap({ children }: { children: React.ReactNode }) {
         );
     }
 
-    return <>{children}</>;
+    return <WorkspaceBootstrap>{children}</WorkspaceBootstrap>;
 }

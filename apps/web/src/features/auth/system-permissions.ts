@@ -11,7 +11,10 @@ export const SYSTEM_PERMISSIONS = {
     ROLES_DELETE: "roles.delete",
     ROLES_PERMISSIONS_MANAGE: "roles.permissions.manage",
     SITES_VIEW: "sites.view",
+    SITES_CREATE: "sites.create",
     SITES_UPDATE: "sites.update",
+    SITES_DELETE: "sites.delete",
+    SITES_SCAN: "sites.scan",
 } as const;
 
 export type SystemPermission = (typeof SYSTEM_PERMISSIONS)[keyof typeof SYSTEM_PERMISSIONS];

@@ -17,6 +17,7 @@ import { Sidebar } from "@/components/ui/sidebar";
 import { useLogoutMutation } from "@/features/auth/api/authApi";
 import { useHasPermission } from "@/features/auth/hooks/use-has-permission";
 import { SYSTEM_PERMISSIONS } from "@/features/auth/system-permissions";
+import { WorkspaceSwitcher } from "@/features/workspaces/components/workspace-switcher";
 import { useAppSelector } from "@/hooks/redux";
 import { cn } from "@/lib/utils";
 
@@ -127,7 +128,7 @@ export function AppShell() {
                             >
                                 <Menu className="h-5 w-5" />
                             </Button>
-                            <span className="text-sm text-slate-600">Workspace overview</span>
+                            <WorkspaceSwitcher />
                         </div>
 
                         <DropdownMenu>

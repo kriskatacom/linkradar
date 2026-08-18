@@ -4,6 +4,7 @@ import { toast } from "sonner";
 
 import { Can } from "@/components/auth/can";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { getAdminErrorMessage } from "@/features/admin/admin-error-messages";
 import {
@@ -66,7 +67,8 @@ export function AdminRoleDetailPage() {
                         </div>
                         {!readOnlyPermissions ? (
                             <Button
-                                disabled={isSavingLabel}
+                                loading={isSavingLabel}
+                                loadingText="Saving..."
                                 onClick={async () => {
                                     try {
                                         await updateRole({ id: role.id, label }).unwrap();
@@ -101,8 +103,8 @@ export function AdminRoleDetailPage() {
                                             key={permission.name}
                                             className="flex items-start gap-2 text-sm"
                                         >
-                                            <input
-                                                type="checkbox"
+                                            <Checkbox
+                                                className="mt-0.5"
                                                 disabled={readOnlyPermissions}
                                                 checked={selectedPermissions.includes(permission.name)}
                                                 onChange={(event) => {
@@ -133,7 +135,8 @@ export function AdminRoleDetailPage() {
                     {!readOnlyPermissions ? (
                         <Button
                             className="mt-4"
-                            disabled={isSavingPermissions}
+                            loading={isSavingPermissions}
+                            loadingText="Saving..."
                             onClick={async () => {
                                 try {
                                     await syncPermissions({

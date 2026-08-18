@@ -5,6 +5,8 @@ import { toast } from "sonner";
 import { Can } from "@/components/auth/can";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { InfoItem } from "@/components/ui/info-item";
 import { Input } from "@/components/ui/input";
 import { getAdminErrorMessage } from "@/features/admin/admin-error-messages";
 import {
@@ -47,39 +49,24 @@ export function AdminUserDetailPage() {
             <div className="grid gap-6 lg:grid-cols-2">
                 <div className="rounded-lg border border-slate-200 bg-white p-6">
                     <h2 className="text-lg font-medium text-slate-900">Profile</h2>
-                    <dl className="mt-4 space-y-3 text-sm">
-                        <div>
-                            <dt className="text-slate-500">Email</dt>
-                            <dd className="text-slate-900">{user.email}</dd>
-                        </div>
-                        <div>
-                            <dt className="text-slate-500">Verified</dt>
-                            <dd>{user.emailVerified ? "Yes" : "No"}</dd>
-                        </div>
-                        <div>
-                            <dt className="text-slate-500">Status</dt>
-                            <dd>
-                                <Badge
-                                    variant={
-                                        user.deletedAt
-                                            ? "danger"
-                                            : user.isActive
-                                              ? "success"
-                                              : "warning"
-                                    }
-                                >
-                                    {statusLabel}
-                                </Badge>
-                            </dd>
-                        </div>
-                        <div>
-                            <dt className="text-slate-500">Created</dt>
-                            <dd>{new Date(user.createdAt).toLocaleString()}</dd>
-                        </div>
-                        <div>
-                            <dt className="text-slate-500">Updated</dt>
-                            <dd>{new Date(user.updatedAt).toLocaleString()}</dd>
-                        </div>
+                    <dl className="mt-4 space-y-2">
+                        <InfoItem label="Email">
+                            <span className="block truncate" title={user.email}>
+                                {user.email}
+                            </span>
+                        </InfoItem>
+                        <InfoItem label="Verified">{user.emailVerified ? "Yes" : "No"}</InfoItem>
+                        <InfoItem label="Status">
+                            <Badge
+                                variant={
+                                    user.deletedAt ? "danger" : user.isActive ? "success" : "warning"
+                                }
+                            >
+                                {statusLabel}
+                            </Badge>
+                        </InfoItem>
+                        <InfoItem label="Created">{new Date(user.createdAt).toLocaleString()}</InfoItem>
+                        <InfoItem label="Updated">{new Date(user.updatedAt).toLocaleString()}</InfoItem>
                     </dl>
 
                     <Can permission={SYSTEM_PERMISSIONS.USERS_UPDATE}>
@@ -87,7 +74,8 @@ export function AdminUserDetailPage() {
                             <label className="block text-sm font-medium text-slate-700">Name</label>
                             <Input value={name} onChange={(event) => setName(event.target.value)} />
                             <Button
-                                disabled={isSavingProfile}
+                                loading={isSavingProfile}
+                                loadingText="Saving..."
                                 onClick={async () => {
                                     try {
                                         await updateUser({ id: user.id, name }).unwrap();
@@ -109,8 +97,7 @@ export function AdminUserDetailPage() {
                         <div className="mt-4 space-y-2">
                             {(rolesData?.data.items ?? []).map((role) => (
                                 <label key={role.id} className="flex items-center gap-2 text-sm">
-                                    <input
-                                        type="checkbox"
+                                    <Checkbox
                                         checked={selectedRoles.includes(role.name)}
                                         onChange={(event) => {
                                             setSelectedRoles((current) =>
@@ -127,7 +114,8 @@ export function AdminUserDetailPage() {
                         </div>
                         <Button
                             className="mt-4"
-                            disabled={isSavingRoles}
+                            loading={isSavingRoles}
+                            loadingText="Saving..."
                             onClick={async () => {
                                 try {
                                     await syncRoles({ id: user.id, roles: selectedRoles }).unwrap();

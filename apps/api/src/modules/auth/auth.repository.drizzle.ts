@@ -13,6 +13,7 @@ import { randomUUID } from "node:crypto";
 
 import { emailAlreadyExistsError } from "./auth.errors.js";
 import type { AuthRepository } from "./auth.repository.js";
+import { insertPersonalWorkspaceTx } from "../workspaces/workspace.provision.js";
 import type {
     AuthSessionRow,
     NewAuthSessionRow,
@@ -301,6 +302,7 @@ export class DrizzleAuthRepository implements AuthRepository {
 
             const assignedRoles = await this.getUserRolesTx(tx, data.id);
             const assignedPermissions = await this.getUserPermissionsTx(tx, data.id);
+            await insertPersonalWorkspaceTx(tx, createdUser);
 
             return {
                 user: createdUser,

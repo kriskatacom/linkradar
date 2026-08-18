@@ -6,16 +6,43 @@ import { describe, expect, it, vi } from "vitest";
 
 import { AppShell } from "@/components/layout/app-shell";
 import { authReducer, authSucceeded, setInitialized } from "@/features/auth/authSlice";
+import { workspaceReducer } from "@/features/workspaces/workspaceSlice";
+import { api } from "@/services/api";
 
 vi.mock("@/features/auth/api/authApi", () => ({
     useLogoutMutation: () => [() => ({ unwrap: async () => undefined }), { isLoading: false }],
+}));
+
+vi.mock("@/features/workspaces/api/workspaceApi", () => ({
+    useGetWorkspacesQuery: () => ({
+        data: {
+            data: {
+                items: [
+                    {
+                        id: "ws-1",
+                        name: "Kristian's Workspace",
+                        slug: "kristians-workspace",
+                        ownerUserId: "u1",
+                        role: "owner",
+                        membersCount: 1,
+                        createdAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString(),
+                    },
+                ],
+            },
+        },
+        isLoading: false,
+    }),
 }));
 
 function createStore(permissions: string[]) {
     const store = configureStore({
         reducer: {
             auth: authReducer,
+            workspace: workspaceReducer,
+            [api.reducerPath]: api.reducer,
         },
+        middleware: (getDefaultMiddleware) => getDefaultMiddleware().concat(api.middleware),
     });
 
     store.dispatch(setInitialized(true));
@@ -53,6 +80,7 @@ describe("AppShell permissions", () => {
         );
 
         expect(screen.getByText("Administration")).toBeInTheDocument();
+        expect(screen.getByText("Kristian's Workspace")).toBeInTheDocument();
     });
 
     it("hides Administration nav item when user lacks admin.access", () => {

@@ -27,6 +27,8 @@ import type {
 } from "../modules/auth/social/social-auth.types.js";
 import { adminPlugin } from "../modules/admin/admin.plugin.js";
 import type { AdminRepository } from "../modules/admin/admin.repository.js";
+import { workspacePlugin } from "../modules/workspaces/workspace.plugin.js";
+import type { WorkspaceRepository } from "../modules/workspaces/workspace.repository.js";
 
 export type AuthPluginOptions = {
     repository?: AuthRepository;
@@ -34,6 +36,7 @@ export type AuthPluginOptions = {
     socialProfileFetcher?: SocialProfileFetcher;
     oauthAdapter?: SocialOAuthAdapter;
     adminRepository?: AdminRepository;
+    workspaceRepository?: WorkspaceRepository;
 };
 
 export const authPlugin: FastifyPluginAsync<AuthPluginOptions> = async (app, options) => {
@@ -131,4 +134,10 @@ export const authPlugin: FastifyPluginAsync<AuthPluginOptions> = async (app, opt
         },
         { prefix: "/api/permissions/test" },
     );
+
+    await app.register(workspacePlugin, {
+        prefix: "/api",
+        repository: options.workspaceRepository,
+        authService: service,
+    });
 };

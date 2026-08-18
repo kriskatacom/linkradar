@@ -8,6 +8,8 @@ export {
     rolePermissionsRelations,
     roles,
     rolesRelations,
+    sites,
+    sitesRelations,
     systemState,
     userSocialAccounts,
     userSocialAccountsRelations,
@@ -15,4 +17,8 @@ export {
     userRolesRelations,
     users,
     usersRelations,
+    workspaceMembers,
+    workspaceMembersRelations,
+    workspaces,
+    workspacesRelations,
 } from "./schema/index.js";

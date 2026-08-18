@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 
 import { emailAlreadyExistsError } from "../auth.errors.js";
 import type { NewUserRow, UserRow } from "../auth.types.js";
+import { insertPersonalWorkspaceTx } from "../../workspaces/workspace.provision.js";
 import {
     DuplicateSocialIdentityError,
     type NewUserSocialAccountRow,
@@ -50,6 +51,7 @@ export class DrizzleSocialAuthRepository implements SocialAuthRepository {
                     ...socialAccount,
                     userId: user.id,
                 });
+                await insertPersonalWorkspaceTx(tx, { id: user.id, name: user.name });
             });
         } catch (error) {
             if (isDuplicateEntry(error)) {

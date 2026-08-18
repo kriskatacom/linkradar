@@ -143,8 +143,13 @@ export function RegisterPage() {
                     }
                 />
 
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? "Creating account..." : "Create account"}
+                <Button
+                    type="submit"
+                    className="w-full"
+                    loading={isLoading}
+                    loadingText="Creating account..."
+                >
+                    Create account
                 </Button>
             </form>
         </AuthLayout>

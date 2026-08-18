@@ -21,6 +21,10 @@ import {
     type UserSocialAccountRow,
 } from "../src/modules/auth/social/social-auth.repository.js";
 import type { SocialProvider } from "../src/modules/auth/social/social-auth.types.js";
+import {
+    ensureMemoryPersonalWorkspace,
+    MemoryWorkspaceStore,
+} from "./memory-workspace.repository.js";
 
 function withDefaults(data: NewUserRow): UserRow {
     const now = new Date();
@@ -59,6 +63,7 @@ export class MemoryAuthRepository implements AuthRepository, SocialAuthRepositor
     readonly permissions = new Map<string, PermissionRow>();
     readonly userRoles = new Map<string, Set<UserRole>>();
     readonly rolePermissions = new Map<string, Set<string>>();
+    readonly workspaceStore = new MemoryWorkspaceStore();
     initialAdminUserId: string | null = null;
 
     async ensureSystemRoles(): Promise<void> {
@@ -246,6 +251,8 @@ export class MemoryAuthRepository implements AuthRepository, SocialAuthRepositor
             await this.assignRoleToUser(user.id, "user");
         }
 
+        ensureMemoryPersonalWorkspace(this.workspaceStore, user);
+
         return {
             user,
             roles: await this.getUserRoles(user.id),
@@ -355,6 +362,7 @@ export class MemoryAuthRepository implements AuthRepository, SocialAuthRepositor
         }
 
         const createdUser = await this.createUser(user);
+        ensureMemoryPersonalWorkspace(this.workspaceStore, createdUser);
         const createdSocial: UserSocialAccountRow = {
             id: socialAccount.id,
             userId: createdUser.id,

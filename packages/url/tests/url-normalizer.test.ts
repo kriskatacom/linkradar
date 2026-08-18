@@ -11,9 +11,16 @@ describe("UrlNormalizer", () => {
         expect(result).toBe("https://example.com/products");
     });
 
-    it("removes URL fragments", () => {
-        const result = normalizer.normalize("https://example.com/products#details");
+    it("treats origin URLs with and without a trailing slash as the same site", () => {
+        expect(normalizer.normalizeSiteUrl("https://example.com")).toBe(
+            normalizer.normalizeSiteUrl("https://example.com/"),
+        );
+        expect(normalizer.normalizeSiteUrl("https://example.com/")).toBe("https://example.com/");
+    });
 
-        expect(result).toBe("https://example.com/products");
+    it("lowercases the hostname and removes fragments and query strings", () => {
+        expect(normalizer.normalizeSiteUrl("HTTPS://Example.COM/path?q=1#hash")).toBe(
+            "https://example.com/path",
+        );
     });
 });

@@ -42,7 +42,8 @@ export function AdminRolesPage() {
                     <Input placeholder="name (manager)" value={name} onChange={(e) => setName(e.target.value)} />
                     <Input placeholder="Label" value={label} onChange={(e) => setLabel(e.target.value)} />
                     <Button
-                        disabled={isCreating}
+                        loading={isCreating}
+                        loadingText="Creating..."
                         onClick={async () => {
                             try {
                                 await createRole({ name, label }).unwrap();

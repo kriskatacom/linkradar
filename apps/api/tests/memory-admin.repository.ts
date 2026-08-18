@@ -14,6 +14,7 @@ import type {
     PaginatedResult,
 } from "../src/modules/admin/admin.types.js";
 import { MemoryAuthRepository } from "./memory-auth.repository.js";
+import { MemoryWorkspaceRepository } from "./memory-workspace.repository.js";
 
 function mapUser(row: UserRow, roles: UserRole[]): AdminUserListItem {
     return {
@@ -396,5 +397,9 @@ export class MemoryAdminRepository implements AdminRepository {
 export function createTestRepositories() {
     const repository = new MemoryAuthRepository();
     const adminRepository = new MemoryAdminRepository(repository);
-    return { repository, adminRepository };
+    const workspaceRepository = new MemoryWorkspaceRepository(
+        repository.workspaceStore,
+        repository,
+    );
+    return { repository, adminRepository, workspaceRepository };
 }

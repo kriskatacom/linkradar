@@ -16,6 +16,12 @@ import { DashboardPage } from "@/features/dashboard/pages/dashboard-page";
 import { PlaceholderPage } from "@/features/dashboard/pages/placeholder-page";
 import { LoginPage } from "@/features/auth/pages/login-page";
 import { RegisterPage } from "@/features/auth/pages/register-page";
+import { AddSitePage } from "@/features/sites/pages/add-site-page";
+import { SiteDetailPage } from "@/features/sites/pages/site-detail-page";
+import { SiteSettingsPage } from "@/features/sites/pages/site-settings-page";
+import { SitesPage } from "@/features/sites/pages/sites-page";
+import { WorkspaceSettingsPage } from "@/features/workspaces/pages/workspace-settings-page";
+import { WorkspacesPage } from "@/features/workspaces/pages/workspaces-page";
 
 export const router = createBrowserRouter([
     {
@@ -34,7 +40,17 @@ export const router = createBrowserRouter([
                 children: [
                     { index: true, element: <Navigate to="/app/dashboard" replace /> },
                     { path: "dashboard", element: <DashboardPage /> },
-                    { path: "sites", element: <PlaceholderPage title="Sites" /> },
+                    {
+                        element: <PermissionRoute permission={SYSTEM_PERMISSIONS.SITES_VIEW} />,
+                        children: [
+                            { path: "sites", element: <SitesPage /> },
+                            { path: "sites/new", element: <AddSitePage /> },
+                            { path: "sites/:siteId", element: <SiteDetailPage /> },
+                            { path: "sites/:siteId/settings", element: <SiteSettingsPage /> },
+                        ],
+                    },
+                    { path: "workspaces", element: <WorkspacesPage /> },
+                    { path: "workspaces/:id/settings", element: <WorkspaceSettingsPage /> },
                     { path: "scans", element: <PlaceholderPage title="Scans" /> },
                     { path: "issues", element: <PlaceholderPage title="Issues" /> },
                     { path: "reports", element: <PlaceholderPage title="Reports" /> },
