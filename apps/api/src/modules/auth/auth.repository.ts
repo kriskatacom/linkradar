@@ -13,6 +13,8 @@ export interface AuthRepository {
         newHash: string;
         expiresAt: Date;
     }): Promise<boolean>;
-    revokeSession(id: string): Promise<void>;
-    revokeSessionByRefreshTokenHash(hash: string): Promise<void>;
+    deleteSession(id: string): Promise<void>;
+    deleteSessionByRefreshTokenHash(hash: string): Promise<void>;
+    deleteExpiredSessions(): Promise<number>;
+    deleteSessionsForUser(userId: string): Promise<number>;
 }

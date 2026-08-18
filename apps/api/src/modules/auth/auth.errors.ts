@@ -40,3 +40,35 @@ export function invalidRefreshTokenError(): AuthError {
 export function validationError(fields: Record<string, string[]>): AuthError {
     return new AuthError("VALIDATION_ERROR", "Validation failed.", 422, fields);
 }
+
+export function socialAccountLinkRequiredError(): AuthError {
+    return new AuthError(
+        "SOCIAL_ACCOUNT_LINK_REQUIRED",
+        "An account with this email already exists. Sign in and link this provider from your settings.",
+        409,
+    );
+}
+
+export function socialEmailRequiredError(): AuthError {
+    return new AuthError(
+        "SOCIAL_EMAIL_REQUIRED",
+        "The social provider did not return an email address.",
+        400,
+    );
+}
+
+export function invalidSocialProviderError(): AuthError {
+    return new AuthError("INVALID_SOCIAL_PROVIDER", "Unsupported social provider.", 400);
+}
+
+export function invalidOAuthStateError(): AuthError {
+    return new AuthError("INVALID_OAUTH_STATE", "Invalid OAuth state.", 401);
+}
+
+export function socialProviderNotConfiguredError(): AuthError {
+    return new AuthError(
+        "SOCIAL_PROVIDER_NOT_CONFIGURED",
+        "This social login provider is not configured.",
+        503,
+    );
+}

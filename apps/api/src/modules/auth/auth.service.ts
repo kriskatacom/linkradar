@@ -47,7 +47,7 @@ export class AuthService {
             deletedAt: null,
         });
 
-        return this.issueAuth(user, context);
+        return this.createSessionForUser(user, context);
     }
 
     async login(input: LoginInput, context: RequestContext): Promise<AuthTokensResult> {
@@ -71,7 +71,7 @@ export class AuthService {
             throw invalidCredentialsError();
         }
 
-        return this.issueAuth(user, context);
+        return this.createSessionForUser(user, context);
     }
 
     async refresh(refreshToken: string | undefined): Promise<AuthTokensResult> {
@@ -79,18 +79,41 @@ export class AuthService {
             throw invalidRefreshTokenError();
         }
 
-        const session = await this.requireUsableSession(refreshToken);
-        const user = await this.requireUsableUser(session.userId);
-        const oldHash = hashRefreshToken(refreshToken);
+        const session = await this.repository.findSessionByRefreshTokenHash(
+            hashRefreshToken(refreshToken),
+        );
+
+        if (!session) {
+            throw invalidRefreshTokenError();
+        }
+
+        if (!this.isSessionUsable(session)) {
+            await this.repository.deleteSession(session.id);
+            throw invalidRefreshTokenError();
+        }
+
+        const user = await this.repository.findUserById(session.userId);
+
+        if (!user || user.deletedAt !== null) {
+            await this.repository.deleteSessionsForUser(session.userId);
+            throw invalidRefreshTokenError();
+        }
+
+        if (!user.isActive) {
+            await this.repository.deleteSession(session.id);
+            throw invalidRefreshTokenError();
+        }
+
         const nextRefreshToken = generateRefreshToken();
         const rotated = await this.repository.rotateSessionRefreshToken({
             sessionId: session.id,
-            oldHash,
+            oldHash: hashRefreshToken(refreshToken),
             newHash: hashRefreshToken(nextRefreshToken),
             expiresAt: this.buildRefreshExpiry(),
         });
 
         if (!rotated) {
+            await this.repository.deleteSession(session.id);
             throw invalidRefreshTokenError();
         }
 
@@ -109,7 +132,15 @@ export class AuthService {
             return;
         }
 
-        await this.repository.revokeSessionByRefreshTokenHash(hashRefreshToken(refreshToken));
+        await this.repository.deleteSessionByRefreshTokenHash(hashRefreshToken(refreshToken));
+    }
+
+    async deleteExpiredSessions(): Promise<number> {
+        return this.repository.deleteExpiredSessions();
+    }
+
+    async deleteSessionsForUser(userId: string): Promise<number> {
+        return this.repository.deleteSessionsForUser(userId);
     }
 
     async authenticateAccessToken(
@@ -126,7 +157,7 @@ export class AuthService {
         const user = await this.requireUsableUser(payload.sub);
         const session = await this.repository.findSessionById(payload.sessionId);
 
-        if (!this.isSessionUsable(session) || session.userId !== user.id) {
+        if (!session || !this.isSessionUsable(session) || session.userId !== user.id) {
             throw unauthenticatedError();
         }
 
@@ -136,7 +167,7 @@ export class AuthService {
         };
     }
 
-    private async issueAuth(user: UserRow, context: RequestContext): Promise<AuthTokensResult> {
+    async createSessionForUser(user: UserRow, context: RequestContext): Promise<AuthTokensResult> {
         const sessionId = randomUUID();
         const refreshToken = generateRefreshToken();
 
@@ -160,18 +191,6 @@ export class AuthService {
         };
     }
 
-    private async requireUsableSession(refreshToken: string): Promise<AuthSessionRow> {
-        const session = await this.repository.findSessionByRefreshTokenHash(
-            hashRefreshToken(refreshToken),
-        );
-
-        if (!this.isSessionUsable(session)) {
-            throw invalidRefreshTokenError();
-        }
-
-        return session;
-    }
-
     private async requireUsableUser(userId: string): Promise<UserRow> {
         const user = await this.repository.findUserById(userId);
 
@@ -186,7 +205,7 @@ export class AuthService {
         return user;
     }
 
-    private isSessionUsable(session: AuthSessionRow | null): session is AuthSessionRow {
+    private isSessionUsable(session: AuthSessionRow | null): boolean {
         if (!session || session.revokedAt !== null) {
             return false;
         }

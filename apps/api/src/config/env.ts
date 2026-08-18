@@ -1,10 +1,18 @@
 import { config } from "dotenv";
 import { resolve } from "node:path";
 
+import type { SocialProvider } from "../modules/auth/social/social-auth.types.js";
+
 config({ path: resolve(process.cwd(), ".env") });
 config({ path: resolve(process.cwd(), "../../.env") });
 
 export type CookieSameSite = "lax" | "none" | "strict";
+
+export type OAuthClientConfig = {
+    clientId: string;
+    clientSecret: string;
+    callbackUrl: string;
+};
 
 export type ApiEnv = {
     nodeEnv: string;
@@ -21,6 +29,7 @@ export type ApiEnv = {
     authCookieName: string;
     authCookiePath: string;
     rateLimitMax: number;
+    oauth: Record<SocialProvider, OAuthClientConfig | null>;
 };
 
 function requireEnv(name: string): string {
@@ -87,6 +96,24 @@ function parseSameSite(raw: string): CookieSameSite {
     throw new Error("Invalid environment variable: AUTH_COOKIE_SAMESITE");
 }
 
+function optionalOAuthConfig(prefix: string): OAuthClientConfig | null {
+    const clientId = process.env[`${prefix}_CLIENT_ID`]?.trim() ?? "";
+    const clientSecret = process.env[`${prefix}_CLIENT_SECRET`]?.trim() ?? "";
+    const callbackUrl = process.env[`${prefix}_CALLBACK_URL`]?.trim() ?? "";
+
+    if (!clientId || !clientSecret) {
+        return null;
+    }
+
+    if (!callbackUrl) {
+        throw new Error(
+            `Incomplete OAuth configuration for ${prefix}. Set ${prefix}_CALLBACK_URL.`,
+        );
+    }
+
+    return { clientId, clientSecret, callbackUrl };
+}
+
 let cached: ApiEnv | undefined;
 
 export function getApiEnv(): ApiEnv {
@@ -141,6 +168,12 @@ export function getApiEnv(): ApiEnv {
             "AUTH_RATE_LIMIT_MAX",
             optionalEnv("AUTH_RATE_LIMIT_MAX", isProduction ? "20" : "200"),
         ),
+        oauth: {
+            google: optionalOAuthConfig("GOOGLE"),
+            facebook: optionalOAuthConfig("FACEBOOK"),
+            linkedin: optionalOAuthConfig("LINKEDIN"),
+            github: optionalOAuthConfig("GITHUB"),
+        },
     };
 
     return cached;

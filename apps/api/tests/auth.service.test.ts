@@ -211,6 +211,8 @@ describe("AuthService refresh", () => {
         } catch (error) {
             expectAuthError(error, "INVALID_REFRESH_TOKEN", 401);
         }
+
+        expect(repository.sessions.size).toBe(1);
     });
 
     it("rejects an invalid refresh token", async () => {
@@ -248,6 +250,8 @@ describe("AuthService refresh", () => {
         } catch (error) {
             expectAuthError(error, "INVALID_REFRESH_TOKEN", 401);
         }
+
+        expect(repository.sessions.size).toBe(0);
     });
 
     it("rejects a revoked session", async () => {
@@ -273,11 +277,13 @@ describe("AuthService refresh", () => {
         } catch (error) {
             expectAuthError(error, "INVALID_REFRESH_TOKEN", 401);
         }
+
+        expect(repository.sessions.size).toBe(0);
     });
 });
 
 describe("AuthService logout", () => {
-    it("revokes the current session", async () => {
+    it("physically deletes the current session", async () => {
         const repository = new MemoryAuthRepository();
         const service = new AuthService(repository);
         const first = await service.register(
@@ -291,8 +297,7 @@ describe("AuthService logout", () => {
 
         await service.logout(first.refreshToken);
 
-        const session = [...repository.sessions.values()][0];
-        expect(session?.revokedAt).toBeInstanceOf(Date);
+        expect(repository.sessions.size).toBe(0);
     });
 
     it("succeeds when no refresh token is present", async () => {
@@ -374,5 +379,86 @@ describe("AuthService me", () => {
         } catch (error) {
             expectAuthError(error, "ACCOUNT_DISABLED", 403);
         }
+    });
+
+    it("does not delete the session when the access JWT is expired", async () => {
+        const repository = new MemoryAuthRepository();
+        const service = new AuthService(repository);
+        const first = await service.register(
+            {
+                name: "Kristian",
+                email: "user@example.com",
+                password: "StrongPassword123",
+            },
+            context,
+        );
+        const session = [...repository.sessions.values()][0] as AuthSessionRow;
+        const { SignJWT } = await import("jose");
+        const { getApiEnv } = await import("../src/config/env.js");
+        const expiredToken = await new SignJWT({ sessionId: session.id })
+            .setProtectedHeader({ alg: "HS256" })
+            .setSubject(first.user.id)
+            .setIssuedAt()
+            .setExpirationTime(Math.floor(Date.now() / 1000) - 60)
+            .sign(new TextEncoder().encode(getApiEnv().jwtAccessSecret));
+
+        try {
+            await service.authenticateAccessToken(expiredToken);
+            throw new Error("Expected authentication to fail");
+        } catch (error) {
+            expectAuthError(error, "UNAUTHENTICATED", 401);
+        }
+
+        expect(repository.sessions.size).toBe(1);
+    });
+});
+
+describe("AuthService session cleanup", () => {
+    it("deleteExpiredSessions removes only expired rows", async () => {
+        const repository = new MemoryAuthRepository();
+        const service = new AuthService(repository);
+        await service.register(
+            {
+                name: "Kristian",
+                email: "user@example.com",
+                password: "StrongPassword123",
+            },
+            context,
+        );
+        const live = [...repository.sessions.values()][0] as AuthSessionRow;
+        await repository.createSession({
+            id: "expired-session",
+            userId: live.userId,
+            refreshTokenHash: "expired-hash",
+            userAgent: null,
+            ipAddress: null,
+            expiresAt: new Date(Date.now() - 1000),
+            revokedAt: null,
+        });
+
+        const deleted = await service.deleteExpiredSessions();
+
+        expect(deleted).toBe(1);
+        expect(repository.sessions.size).toBe(1);
+        expect(repository.sessions.has(live.id)).toBe(true);
+    });
+
+    it("deleteSessionsForUser removes every session for that user", async () => {
+        const repository = new MemoryAuthRepository();
+        const service = new AuthService(repository);
+        const first = await service.register(
+            {
+                name: "Kristian",
+                email: "user@example.com",
+                password: "StrongPassword123",
+            },
+            context,
+        );
+        await service.login({ email: "user@example.com", password: "StrongPassword123" }, context);
+
+        const deleted = await service.deleteSessionsForUser(first.user.id);
+
+        expect(deleted).toBe(2);
+        expect(repository.sessions.size).toBe(0);
     });
 });

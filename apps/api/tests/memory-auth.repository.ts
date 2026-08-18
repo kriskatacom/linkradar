@@ -5,6 +5,14 @@ import type {
     NewUserRow,
     UserRow,
 } from "../src/modules/auth/auth.types.js";
+import { emailAlreadyExistsError } from "../src/modules/auth/auth.errors.js";
+import {
+    DuplicateSocialIdentityError,
+    type NewUserSocialAccountRow,
+    type SocialAuthRepository,
+    type UserSocialAccountRow,
+} from "../src/modules/auth/social/social-auth.repository.js";
+import type { SocialProvider } from "../src/modules/auth/social/social-auth.types.js";
 
 function withDefaults(data: NewUserRow): UserRow {
     const now = new Date();
@@ -35,9 +43,10 @@ function withSessionDefaults(data: NewAuthSessionRow): AuthSessionRow {
     };
 }
 
-export class MemoryAuthRepository implements AuthRepository {
+export class MemoryAuthRepository implements AuthRepository, SocialAuthRepository {
     readonly users = new Map<string, UserRow>();
     readonly sessions = new Map<string, AuthSessionRow>();
+    readonly socialAccounts = new Map<string, UserSocialAccountRow>();
 
     async findUserByEmail(email: string): Promise<UserRow | null> {
         return [...this.users.values()].find((user) => user.email === email) ?? null;
@@ -48,6 +57,10 @@ export class MemoryAuthRepository implements AuthRepository {
     }
 
     async createUser(data: NewUserRow): Promise<UserRow> {
+        if (await this.findUserByEmail(data.email)) {
+            throw emailAlreadyExistsError();
+        }
+
         const user = withDefaults(data);
         this.users.set(user.id, user);
         return user;
@@ -77,7 +90,7 @@ export class MemoryAuthRepository implements AuthRepository {
     }): Promise<boolean> {
         const session = this.sessions.get(input.sessionId);
 
-        if (!session || session.refreshTokenHash !== input.oldHash || session.revokedAt !== null) {
+        if (!session || session.refreshTokenHash !== input.oldHash) {
             return false;
         }
 
@@ -90,23 +103,81 @@ export class MemoryAuthRepository implements AuthRepository {
         return true;
     }
 
-    async revokeSession(id: string): Promise<void> {
-        const session = this.sessions.get(id);
-
-        if (!session || session.revokedAt !== null) {
-            return;
-        }
-
-        this.sessions.set(id, { ...session, revokedAt: new Date() });
+    async deleteSession(id: string): Promise<void> {
+        this.sessions.delete(id);
     }
 
-    async revokeSessionByRefreshTokenHash(hash: string): Promise<void> {
+    async deleteSessionByRefreshTokenHash(hash: string): Promise<void> {
         const session = await this.findSessionByRefreshTokenHash(hash);
 
-        if (!session || session.revokedAt !== null) {
-            return;
+        if (session) {
+            this.sessions.delete(session.id);
+        }
+    }
+
+    async deleteExpiredSessions(): Promise<number> {
+        const now = Date.now();
+        let deleted = 0;
+
+        for (const [id, session] of this.sessions) {
+            if (session.expiresAt.getTime() <= now) {
+                this.sessions.delete(id);
+                deleted += 1;
+            }
         }
 
-        this.sessions.set(session.id, { ...session, revokedAt: new Date() });
+        return deleted;
+    }
+
+    async deleteSessionsForUser(userId: string): Promise<number> {
+        let deleted = 0;
+
+        for (const [id, session] of this.sessions) {
+            if (session.userId === userId) {
+                this.sessions.delete(id);
+                deleted += 1;
+            }
+        }
+
+        return deleted;
+    }
+
+    async findByProviderIdentity(
+        provider: SocialProvider,
+        providerUserId: string,
+    ): Promise<UserSocialAccountRow | null> {
+        return (
+            [...this.socialAccounts.values()].find(
+                (account) =>
+                    account.provider === provider && account.providerUserId === providerUserId,
+            ) ?? null
+        );
+    }
+
+    async createUserAndSocialAccount(
+        user: NewUserRow,
+        socialAccount: NewUserSocialAccountRow,
+    ): Promise<{ user: UserRow; socialAccount: UserSocialAccountRow }> {
+        if (
+            await this.findByProviderIdentity(
+                socialAccount.provider as SocialProvider,
+                socialAccount.providerUserId,
+            )
+        ) {
+            throw new DuplicateSocialIdentityError();
+        }
+
+        const createdUser = await this.createUser(user);
+        const createdSocial: UserSocialAccountRow = {
+            id: socialAccount.id,
+            userId: createdUser.id,
+            provider: socialAccount.provider,
+            providerUserId: socialAccount.providerUserId,
+            providerEmail: socialAccount.providerEmail ?? null,
+            createdAt: socialAccount.createdAt ?? new Date(),
+            updatedAt: socialAccount.updatedAt ?? new Date(),
+        };
+        this.socialAccounts.set(createdSocial.id, createdSocial);
+        return { user: createdUser, socialAccount: createdSocial };
     }
 }

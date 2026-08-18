@@ -1,5 +1,5 @@
 import { authSessions, db, users } from "@link-radar/database";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, lte } from "drizzle-orm";
 
 import { emailAlreadyExistsError } from "./auth.errors.js";
 import type { AuthRepository } from "./auth.repository.js";
@@ -104,7 +104,6 @@ export class DrizzleAuthRepository implements AuthRepository {
                     and(
                         eq(authSessions.id, input.sessionId),
                         eq(authSessions.refreshTokenHash, input.oldHash),
-                        isNull(authSessions.revokedAt),
                     ),
                 );
         });
@@ -112,17 +111,21 @@ export class DrizzleAuthRepository implements AuthRepository {
         return getAffectedRows(result) === 1;
     }
 
-    async revokeSession(id: string): Promise<void> {
-        await db
-            .update(authSessions)
-            .set({ revokedAt: new Date() })
-            .where(and(eq(authSessions.id, id), isNull(authSessions.revokedAt)));
+    async deleteSession(id: string): Promise<void> {
+        await db.delete(authSessions).where(eq(authSessions.id, id));
     }
 
-    async revokeSessionByRefreshTokenHash(hash: string): Promise<void> {
-        await db
-            .update(authSessions)
-            .set({ revokedAt: new Date() })
-            .where(and(eq(authSessions.refreshTokenHash, hash), isNull(authSessions.revokedAt)));
+    async deleteSessionByRefreshTokenHash(hash: string): Promise<void> {
+        await db.delete(authSessions).where(eq(authSessions.refreshTokenHash, hash));
+    }
+
+    async deleteExpiredSessions(): Promise<number> {
+        const result = await db.delete(authSessions).where(lte(authSessions.expiresAt, new Date()));
+        return getAffectedRows(result);
+    }
+
+    async deleteSessionsForUser(userId: string): Promise<number> {
+        const result = await db.delete(authSessions).where(eq(authSessions.userId, userId));
+        return getAffectedRows(result);
     }
 }

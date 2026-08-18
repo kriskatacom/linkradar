@@ -130,6 +130,25 @@ describe("auth routes", () => {
         await app.close();
     });
 
+    it("clears the refresh cookie for an invalid refresh token", async () => {
+        const app = await buildApp({ repository: new MemoryAuthRepository() });
+
+        const response = await app.inject({
+            method: "POST",
+            url: "/api/auth/refresh",
+            headers: {
+                cookie: `${getApiEnv().authCookieName}=not-a-real-token`,
+            },
+        });
+
+        expect(response.statusCode).toBe(401);
+        const setCookie = response.headers["set-cookie"];
+        const cookie = Array.isArray(setCookie) ? setCookie.join(";") : setCookie;
+        expect(cookie).toMatch(/Max-Age=0|Expires=/i);
+
+        await app.close();
+    });
+
     it("returns success when logging out without a cookie", async () => {
         const app = await buildApp({ repository: new MemoryAuthRepository() });
 
