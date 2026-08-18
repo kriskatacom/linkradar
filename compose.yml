@@ -1,0 +1,15 @@
+services:
+    mysql:
+        image: mysql:8.4
+        container_name: linkradar-mysql
+        restart: unless-stopped
+        environment:
+            MYSQL_ROOT_PASSWORD: root
+            MYSQL_DATABASE: linkradar
+        ports:
+            - "3306:3306"
+        volumes:
+            - linkradar_mysql_data:/var/lib/mysql
+
+volumes:
+    linkradar_mysql_data:
