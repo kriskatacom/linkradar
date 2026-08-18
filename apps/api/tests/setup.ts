@@ -1,0 +1,10 @@
+process.env.NODE_ENV = "test";
+process.env.JWT_ACCESS_SECRET ??= "test-jwt-access-secret-value-32ch";
+process.env.FRONTEND_URL ??= "http://localhost:5173";
+process.env.API_HOST ??= "127.0.0.1";
+process.env.API_PORT ??= "3000";
+process.env.JWT_ACCESS_TTL ??= "15m";
+process.env.AUTH_REFRESH_TOKEN_DAYS ??= "30";
+process.env.AUTH_COOKIE_SECURE ??= "false";
+process.env.AUTH_COOKIE_SAMESITE ??= "lax";
+process.env.LOG_LEVEL ??= "silent";
