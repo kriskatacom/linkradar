@@ -2,6 +2,7 @@ import rateLimit from "@fastify/rate-limit";
 import type { FastifyPluginAsync } from "fastify";
 
 import { getApiEnv } from "../config/env.js";
+import { createAuthMiddleware, createRequireAnyRole } from "../middleware/auth.middleware.js";
 import { AuthController } from "../modules/auth/auth.controller.js";
 import type { AuthRepository } from "../modules/auth/auth.repository.js";
 import { authRoutes } from "../modules/auth/auth.routes.js";
@@ -42,6 +43,9 @@ export const authPlugin: FastifyPluginAsync<AuthPluginOptions> = async (app, opt
     const socialAuthService = new SocialAuthService(repository, socialRepository, service);
     const controller = new AuthController(service);
     const profileFetcher = options.socialProfileFetcher ?? new HttpSocialProfileFetcher();
+    await repository.ensureSystemRoles();
+    const authenticate = createAuthMiddleware(service);
+    const requireAdmin = createRequireAnyRole(["admin"]);
 
     await app.register(
         async (authApp) => {
@@ -63,5 +67,17 @@ export const authPlugin: FastifyPluginAsync<AuthPluginOptions> = async (app, opt
             });
         },
         { prefix: "/api/auth" },
+    );
+
+    await app.register(
+        async (adminApp) => {
+            adminApp.get("/test", { preHandler: [authenticate, requireAdmin] }, async () => ({
+                success: true,
+                data: {
+                    message: "Admin access granted.",
+                },
+            }));
+        },
+        { prefix: "/api/admin" },
     );
 };

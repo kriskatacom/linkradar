@@ -84,6 +84,7 @@ describe("auth routes", () => {
 
         expect(response.statusCode).toBe(200);
         expect(response.json().data.user.email).toBe("user@example.com");
+        expect(response.json().data.user.roles).toEqual(["admin"]);
 
         await app.close();
     });
@@ -159,6 +160,54 @@ describe("auth routes", () => {
 
         expect(response.statusCode).toBe(200);
         expect(response.json().success).toBe(true);
+
+        await app.close();
+    });
+
+    it("denies admin test endpoint for normal users and allows admin", async () => {
+        const app = await buildApp({ repository: new MemoryAuthRepository() });
+
+        const adminRegister = await app.inject({
+            method: "POST",
+            url: "/api/auth/register",
+            payload: {
+                name: "Admin",
+                email: "admin@example.com",
+                password: "StrongPassword123",
+            },
+        });
+        const adminAccessToken = adminRegister.json().data.accessToken as string;
+
+        const userRegister = await app.inject({
+            method: "POST",
+            url: "/api/auth/register",
+            payload: {
+                name: "User",
+                email: "user@example.com",
+                password: "StrongPassword123",
+            },
+        });
+        const userAccessToken = userRegister.json().data.accessToken as string;
+
+        const forbidden = await app.inject({
+            method: "GET",
+            url: "/api/admin/test",
+            headers: {
+                authorization: `Bearer ${userAccessToken}`,
+            },
+        });
+        expect(forbidden.statusCode).toBe(403);
+        expect(forbidden.json().error.code).toBe("FORBIDDEN");
+
+        const allowed = await app.inject({
+            method: "GET",
+            url: "/api/admin/test",
+            headers: {
+                authorization: `Bearer ${adminAccessToken}`,
+            },
+        });
+        expect(allowed.statusCode).toBe(200);
+        expect(allowed.json().data.message).toBe("Admin access granted.");
 
         await app.close();
     });

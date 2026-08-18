@@ -3,6 +3,8 @@ import type {
     AuthSessionRow,
     NewAuthSessionRow,
     NewUserRow,
+    RoleRow,
+    UserRole,
     UserRow,
 } from "../src/modules/auth/auth.types.js";
 import { emailAlreadyExistsError } from "../src/modules/auth/auth.errors.js";
@@ -47,6 +49,30 @@ export class MemoryAuthRepository implements AuthRepository, SocialAuthRepositor
     readonly users = new Map<string, UserRow>();
     readonly sessions = new Map<string, AuthSessionRow>();
     readonly socialAccounts = new Map<string, UserSocialAccountRow>();
+    readonly roles = new Map<UserRole, RoleRow>();
+    readonly userRoles = new Map<string, Set<UserRole>>();
+    initialAdminUserId: string | null = null;
+
+    async ensureSystemRoles(): Promise<void> {
+        if (!this.roles.has("admin")) {
+            this.roles.set("admin", {
+                id: "role-admin",
+                name: "admin",
+                label: "Administrator",
+                createdAt: new Date(),
+                updatedAt: new Date(),
+            });
+        }
+        if (!this.roles.has("user")) {
+            this.roles.set("user", {
+                id: "role-user",
+                name: "user",
+                label: "User",
+                createdAt: new Date(),
+                updatedAt: new Date(),
+            });
+        }
+    }
 
     async findUserByEmail(email: string): Promise<UserRow | null> {
         return [...this.users.values()].find((user) => user.email === email) ?? null;
@@ -54,6 +80,27 @@ export class MemoryAuthRepository implements AuthRepository, SocialAuthRepositor
 
     async findUserById(id: string): Promise<UserRow | null> {
         return this.users.get(id) ?? null;
+    }
+
+    async findRoleByName(name: UserRole): Promise<RoleRow | null> {
+        return this.roles.get(name) ?? null;
+    }
+
+    async getUserRoles(userId: string): Promise<UserRole[]> {
+        const assigned = this.userRoles.get(userId);
+        return assigned ? [...assigned.values()] : [];
+    }
+
+    async userHasRole(userId: string, roleName: UserRole): Promise<boolean> {
+        const assigned = this.userRoles.get(userId);
+        return assigned ? assigned.has(roleName) : false;
+    }
+
+    async assignRoleToUser(userId: string, roleName: UserRole): Promise<void> {
+        await this.ensureSystemRoles();
+        const current = this.userRoles.get(userId) ?? new Set<UserRole>();
+        current.add(roleName);
+        this.userRoles.set(userId, current);
     }
 
     async createUser(data: NewUserRow): Promise<UserRow> {
@@ -64,6 +111,25 @@ export class MemoryAuthRepository implements AuthRepository, SocialAuthRepositor
         const user = withDefaults(data);
         this.users.set(user.id, user);
         return user;
+    }
+
+    async createUserWithInitialRole(
+        data: NewUserRow,
+    ): Promise<{ user: UserRow; roles: UserRole[] }> {
+        await this.ensureSystemRoles();
+        const user = await this.createUser(data);
+
+        if (!this.initialAdminUserId) {
+            this.initialAdminUserId = user.id;
+            await this.assignRoleToUser(user.id, "admin");
+        } else {
+            await this.assignRoleToUser(user.id, "user");
+        }
+
+        return {
+            user,
+            roles: await this.getUserRoles(user.id),
+        };
     }
 
     async createSession(data: NewAuthSessionRow): Promise<AuthSessionRow> {

@@ -1,7 +1,8 @@
 import type { FastifyRequest } from "fastify";
 
-import { unauthenticatedError } from "../modules/auth/auth.errors.js";
+import { forbiddenError, unauthenticatedError } from "../modules/auth/auth.errors.js";
 import type { AuthService } from "../modules/auth/auth.service.js";
+import type { UserRole } from "../modules/auth/auth.types.js";
 
 export function createAuthMiddleware(service: AuthService) {
     return async function authenticate(request: FastifyRequest): Promise<void> {
@@ -19,5 +20,20 @@ export function createAuthMiddleware(service: AuthService) {
 
         const { user, sessionId } = await service.authenticateAccessToken(accessToken);
         request.auth = { user, sessionId };
+    };
+}
+
+export function createRequireAnyRole(requiredRoles: UserRole[]) {
+    return async function requireAnyRole(request: FastifyRequest): Promise<void> {
+        const auth = request.auth;
+
+        if (!auth) {
+            throw unauthenticatedError();
+        }
+
+        const hasRole = requiredRoles.some((role) => auth.user.roles.includes(role));
+        if (!hasRole) {
+            throw forbiddenError();
+        }
     };
 }

@@ -3,6 +3,7 @@ import { createBrowserRouter, Navigate } from "react-router-dom";
 import { AppShell } from "@/components/layout/app-shell";
 import { GuestRoute } from "@/components/routing/guest-route";
 import { ProtectedRoute } from "@/components/routing/protected-route";
+import { RoleRoute } from "@/components/routing/role-route";
 import { DashboardPage } from "@/features/dashboard/pages/dashboard-page";
 import { PlaceholderPage } from "@/features/dashboard/pages/placeholder-page";
 import { LoginPage } from "@/features/auth/pages/login-page";
@@ -30,6 +31,12 @@ export const router = createBrowserRouter([
                     { path: "issues", element: <PlaceholderPage title="Issues" /> },
                     { path: "reports", element: <PlaceholderPage title="Reports" /> },
                     { path: "settings", element: <PlaceholderPage title="Settings" /> },
+                    {
+                        element: <RoleRoute role="admin" />,
+                        children: [
+                            { path: "admin", element: <PlaceholderPage title="Administration" /> },
+                        ],
+                    },
                 ],
             },
         ],

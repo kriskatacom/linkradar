@@ -63,6 +63,97 @@ describe("AuthService register", () => {
         expect(storedSession).toBeDefined();
         expect(storedSession?.refreshTokenHash).toBe(hashRefreshToken(result.refreshToken));
         expect(storedSession?.refreshTokenHash).not.toBe(result.refreshToken);
+        expect(result.user.roles).toEqual(["admin"]);
+    });
+
+    it("assigns admin to first user, then user role to next users", async () => {
+        const repository = new MemoryAuthRepository();
+        const service = new AuthService(repository);
+
+        const first = await service.register(
+            {
+                name: "First",
+                email: "first@example.com",
+                password: "StrongPassword123",
+            },
+            context,
+        );
+        const second = await service.register(
+            {
+                name: "Second",
+                email: "second@example.com",
+                password: "StrongPassword123",
+            },
+            context,
+        );
+        const third = await service.register(
+            {
+                name: "Third",
+                email: "third@example.com",
+                password: "StrongPassword123",
+            },
+            context,
+        );
+
+        expect(first.user.roles).toEqual(["admin"]);
+        expect(second.user.roles).toEqual(["user"]);
+        expect(third.user.roles).toEqual(["user"]);
+    });
+
+    it("does not reassign admin when the initial admin is soft-deleted", async () => {
+        const repository = new MemoryAuthRepository();
+        const service = new AuthService(repository);
+
+        const first = await service.register(
+            {
+                name: "First",
+                email: "first@example.com",
+                password: "StrongPassword123",
+            },
+            context,
+        );
+        const firstUser = repository.users.get(first.user.id) as UserRow;
+        repository.users.set(first.user.id, { ...firstUser, deletedAt: new Date() });
+
+        const second = await service.register(
+            {
+                name: "Second",
+                email: "second@example.com",
+                password: "StrongPassword123",
+            },
+            context,
+        );
+
+        expect(second.user.roles).toEqual(["user"]);
+    });
+
+    it("keeps only one initial admin under concurrent registration", async () => {
+        const repository = new MemoryAuthRepository();
+        const service = new AuthService(repository);
+
+        const [first, second] = await Promise.all([
+            service.register(
+                {
+                    name: "Parallel A",
+                    email: "parallel-a@example.com",
+                    password: "StrongPassword123",
+                },
+                context,
+            ),
+            service.register(
+                {
+                    name: "Parallel B",
+                    email: "parallel-b@example.com",
+                    password: "StrongPassword123",
+                },
+                context,
+            ),
+        ]);
+
+        const adminCount = [first.user, second.user].filter((user) =>
+            user.roles.includes("admin"),
+        ).length;
+        expect(adminCount).toBe(1);
     });
 
     it("rejects a duplicate email, including soft-deleted accounts", async () => {
@@ -323,6 +414,7 @@ describe("AuthService me", () => {
 
         const current = await service.authenticateAccessToken(first.accessToken);
         expect(current.user.email).toBe("user@example.com");
+        expect(current.user.roles).toEqual(["admin"]);
     });
 
     it("rejects an invalid access token", async () => {
@@ -460,5 +552,36 @@ describe("AuthService session cleanup", () => {
 
         expect(deleted).toBe(2);
         expect(repository.sessions.size).toBe(0);
+    });
+});
+
+describe("AuthService roles", () => {
+    it("creates system roles idempotently", async () => {
+        const repository = new MemoryAuthRepository();
+        await repository.ensureSystemRoles();
+        await repository.ensureSystemRoles();
+
+        expect(repository.roles.size).toBe(2);
+        expect(repository.roles.has("admin")).toBe(true);
+        expect(repository.roles.has("user")).toBe(true);
+    });
+
+    it("prevents duplicate role assignment", async () => {
+        const repository = new MemoryAuthRepository();
+        const service = new AuthService(repository);
+        const first = await service.register(
+            {
+                name: "Kristian",
+                email: "user@example.com",
+                password: "StrongPassword123",
+            },
+            context,
+        );
+
+        await repository.assignRoleToUser(first.user.id, "admin");
+        await repository.assignRoleToUser(first.user.id, "admin");
+        const roles = await repository.getUserRoles(first.user.id);
+
+        expect(roles).toEqual(["admin"]);
     });
 });

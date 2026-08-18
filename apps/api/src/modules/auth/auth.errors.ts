@@ -72,3 +72,7 @@ export function socialProviderNotConfiguredError(): AuthError {
         503,
     );
 }
+
+export function forbiddenError(): AuthError {
+    return new AuthError("FORBIDDEN", "You do not have permission to perform this action.", 403);
+}

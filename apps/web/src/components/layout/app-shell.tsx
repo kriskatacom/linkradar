@@ -15,6 +15,7 @@ import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Sidebar } from "@/components/ui/sidebar";
 import { useLogoutMutation } from "@/features/auth/api/authApi";
+import { useHasRole } from "@/features/auth/hooks/use-has-role";
 import { useAppSelector } from "@/hooks/redux";
 import { cn } from "@/lib/utils";
 
@@ -26,7 +27,7 @@ const menuItems = [
     { label: "Reports", href: "/app/reports" },
 ];
 
-function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+function SidebarContent({ onNavigate, isAdmin }: { onNavigate?: () => void; isAdmin: boolean }) {
     return (
         <div className="flex h-full flex-col">
             <div className="p-4 text-lg font-semibold text-slate-900">LinkRadar</div>
@@ -49,6 +50,20 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                 ))}
             </nav>
             <div className="p-3">
+                {isAdmin ? (
+                    <NavLink
+                        to="/app/admin"
+                        onClick={onNavigate}
+                        className={({ isActive }) =>
+                            cn(
+                                "mb-1 block rounded-md px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-slate-900",
+                                isActive && "bg-slate-100 text-slate-900",
+                            )
+                        }
+                    >
+                        Administration
+                    </NavLink>
+                ) : null}
                 <NavLink
                     to="/app/settings"
                     onClick={onNavigate}
@@ -71,6 +86,7 @@ export function AppShell() {
     const [menuOpen, setMenuOpen] = useState(false);
     const [logout, { isLoading: isLoggingOut }] = useLogoutMutation();
     const user = useAppSelector((state) => state.auth.user);
+    const isAdmin = useHasRole("admin");
     const navigate = useNavigate();
 
     const initials = useMemo(() => {
@@ -88,12 +104,12 @@ export function AppShell() {
         <div className="min-h-screen bg-slate-50">
             <div className="flex min-h-screen">
                 <Sidebar className="hidden w-64 md:block">
-                    <SidebarContent />
+                    <SidebarContent isAdmin={isAdmin} />
                 </Sidebar>
 
                 <Sheet open={mobileOpen}>
                     <SheetContent className="md:hidden">
-                        <SidebarContent onNavigate={() => setMobileOpen(false)} />
+                        <SidebarContent isAdmin={isAdmin} onNavigate={() => setMobileOpen(false)} />
                     </SheetContent>
                 </Sheet>
 

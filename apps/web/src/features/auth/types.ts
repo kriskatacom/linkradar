@@ -1,8 +1,11 @@
+export type UserRole = "admin" | "user";
+
 export type AuthUser = {
     id: string;
     name: string;
     email: string;
     emailVerified: boolean;
+    roles: UserRole[];
 };
 
 export type SuccessResponse<T> = {

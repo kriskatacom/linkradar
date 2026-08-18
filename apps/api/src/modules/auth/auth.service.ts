@@ -22,6 +22,7 @@ import type {
     AuthSessionRow,
     AuthTokensResult,
     RequestContext,
+    UserRole,
     UserRow,
 } from "./auth.types.js";
 import { toAuthenticatedUser } from "./auth.types.js";
@@ -37,7 +38,7 @@ export class AuthService {
         }
 
         const passwordHash = await hashPassword(input.password);
-        const user = await this.repository.createUser({
+        const created = await this.repository.createUserWithInitialRole({
             id: randomUUID(),
             name: input.name,
             email: input.email,
@@ -47,7 +48,7 @@ export class AuthService {
             deletedAt: null,
         });
 
-        return this.createSessionForUser(user, context);
+        return this.createSessionForUser(created.user, context, created.roles);
     }
 
     async login(input: LoginInput, context: RequestContext): Promise<AuthTokensResult> {
@@ -118,7 +119,7 @@ export class AuthService {
         }
 
         return {
-            user: toAuthenticatedUser(user),
+            user: toAuthenticatedUser(user, await this.repository.getUserRoles(user.id)),
             accessToken: await signAccessToken({
                 sub: user.id,
                 sessionId: session.id,
@@ -162,12 +163,16 @@ export class AuthService {
         }
 
         return {
-            user: toAuthenticatedUser(user),
+            user: toAuthenticatedUser(user, await this.repository.getUserRoles(user.id)),
             sessionId: session.id,
         };
     }
 
-    async createSessionForUser(user: UserRow, context: RequestContext): Promise<AuthTokensResult> {
+    async createSessionForUser(
+        user: UserRow,
+        context: RequestContext,
+        knownRoles?: UserRole[],
+    ): Promise<AuthTokensResult> {
         const sessionId = randomUUID();
         const refreshToken = generateRefreshToken();
 
@@ -182,7 +187,10 @@ export class AuthService {
         });
 
         return {
-            user: toAuthenticatedUser(user),
+            user: toAuthenticatedUser(
+                user,
+                knownRoles ?? (await this.repository.getUserRoles(user.id)),
+            ),
             accessToken: await signAccessToken({
                 sub: user.id,
                 sessionId,

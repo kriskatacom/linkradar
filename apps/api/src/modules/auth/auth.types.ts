@@ -1,15 +1,19 @@
-import type { authSessions, users } from "@link-radar/database";
+import type { authSessions, roles, users } from "@link-radar/database";
 
 export type UserRow = typeof users.$inferSelect;
 export type NewUserRow = typeof users.$inferInsert;
 export type AuthSessionRow = typeof authSessions.$inferSelect;
 export type NewAuthSessionRow = typeof authSessions.$inferInsert;
+export type RoleRow = typeof roles.$inferSelect;
+
+export type UserRole = "admin" | "user";
 
 export type AuthenticatedUser = {
     id: string;
     name: string;
     email: string;
     emailVerified: boolean;
+    roles: UserRole[];
 };
 
 export type AccessTokenPayload = {
@@ -42,11 +46,12 @@ export type ErrorResponse = {
     };
 };
 
-export function toAuthenticatedUser(user: UserRow): AuthenticatedUser {
+export function toAuthenticatedUser(user: UserRow, roles: UserRole[]): AuthenticatedUser {
     return {
         id: user.id,
         name: user.name,
         email: user.email,
         emailVerified: user.emailVerifiedAt !== null,
+        roles,
     };
 }
