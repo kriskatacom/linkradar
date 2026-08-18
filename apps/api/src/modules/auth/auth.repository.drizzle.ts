@@ -1,4 +1,13 @@
-import { authSessions, db, roles, systemState, userRoles, users } from "@link-radar/database";
+import {
+    authSessions,
+    db,
+    permissions,
+    rolePermissions,
+    roles,
+    systemState,
+    userRoles,
+    users,
+} from "@link-radar/database";
 import { and, eq, lte, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 
@@ -8,10 +17,16 @@ import type {
     AuthSessionRow,
     NewAuthSessionRow,
     NewUserRow,
+    PermissionName,
+    PermissionRow,
     RoleRow,
     UserRole,
     UserRow,
 } from "./auth.types.js";
+import {
+    DEFAULT_USER_PERMISSIONS,
+    SYSTEM_PERMISSION_DEFINITIONS,
+} from "./rbac/system-permissions.js";
 
 function isDuplicateEntry(error: unknown): boolean {
     return (
@@ -44,11 +59,30 @@ const SYSTEM_ROLE_DEFINITIONS: Array<{ name: UserRole; label: string }> = [
     { name: "user", label: "User" },
 ];
 const INITIAL_ADMIN_MARKER_KEY = "initial_admin_user_id";
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export class DrizzleAuthRepository implements AuthRepository {
     async ensureSystemRoles(): Promise<void> {
         await db.transaction(async (tx) => {
             await this.ensureSystemRolesTx(tx);
+        });
+    }
+
+    async ensureSystemPermissions(): Promise<void> {
+        await db.transaction(async (tx) => {
+            await this.ensureSystemPermissionsTx(tx);
+        });
+    }
+
+    async ensureDefaultRolePermissions(): Promise<void> {
+        await db.transaction(async (tx) => {
+            await this.ensureDefaultRolePermissionsTx(tx);
+        });
+    }
+
+    async ensureRbacBootstrap(): Promise<void> {
+        await db.transaction(async (tx) => {
+            await this.ensureRbacBootstrapTx(tx);
         });
     }
 
@@ -67,6 +101,15 @@ export class DrizzleAuthRepository implements AuthRepository {
         return rows[0] ?? null;
     }
 
+    async findPermissionByName(name: PermissionName): Promise<PermissionRow | null> {
+        const rows = await db.select().from(permissions).where(eq(permissions.name, name)).limit(1);
+        return rows[0] ?? null;
+    }
+
+    async getPermissions(): Promise<PermissionRow[]> {
+        return db.select().from(permissions);
+    }
+
     async getUserRoles(userId: string): Promise<UserRole[]> {
         const rows = await db
             .select({ roleName: roles.name })
@@ -75,6 +118,27 @@ export class DrizzleAuthRepository implements AuthRepository {
             .where(eq(userRoles.userId, userId));
 
         return rows.map((row) => row.roleName as UserRole);
+    }
+
+    async getRolePermissions(roleId: string): Promise<PermissionName[]> {
+        const rows = await db
+            .select({ permissionName: permissions.name })
+            .from(rolePermissions)
+            .innerJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
+            .where(eq(rolePermissions.roleId, roleId));
+
+        return rows.map((row) => row.permissionName);
+    }
+
+    async getUserPermissions(userId: string): Promise<PermissionName[]> {
+        const rows = await db
+            .selectDistinct({ permissionName: permissions.name })
+            .from(userRoles)
+            .innerJoin(rolePermissions, eq(rolePermissions.roleId, userRoles.roleId))
+            .innerJoin(permissions, eq(permissions.id, rolePermissions.permissionId))
+            .where(eq(userRoles.userId, userId));
+
+        return rows.map((row) => row.permissionName);
     }
 
     async userHasRole(userId: string, roleName: UserRole): Promise<boolean> {
@@ -87,6 +151,38 @@ export class DrizzleAuthRepository implements AuthRepository {
             .select({ userId: userRoles.userId })
             .from(userRoles)
             .where(and(eq(userRoles.userId, userId), eq(userRoles.roleId, role.id)))
+            .limit(1);
+
+        return rows.length > 0;
+    }
+
+    async roleHasPermission(roleId: string, permissionName: PermissionName): Promise<boolean> {
+        const permission = await this.findPermissionByName(permissionName);
+        if (!permission) {
+            return false;
+        }
+
+        const rows = await db
+            .select({ roleId: rolePermissions.roleId })
+            .from(rolePermissions)
+            .where(
+                and(
+                    eq(rolePermissions.roleId, roleId),
+                    eq(rolePermissions.permissionId, permission.id),
+                ),
+            )
+            .limit(1);
+
+        return rows.length > 0;
+    }
+
+    async userHasPermission(userId: string, permissionName: PermissionName): Promise<boolean> {
+        const rows = await db
+            .select({ permissionId: permissions.id })
+            .from(userRoles)
+            .innerJoin(rolePermissions, eq(rolePermissions.roleId, userRoles.roleId))
+            .innerJoin(permissions, eq(permissions.id, rolePermissions.permissionId))
+            .where(and(eq(userRoles.userId, userId), eq(permissions.name, permissionName)))
             .limit(1);
 
         return rows.length > 0;
@@ -111,6 +207,31 @@ export class DrizzleAuthRepository implements AuthRepository {
         }
     }
 
+    async assignPermissionToRole(roleId: string, permissionId: string): Promise<void> {
+        try {
+            await db.insert(rolePermissions).values({
+                roleId,
+                permissionId,
+            });
+        } catch (error) {
+            if (isDuplicateEntry(error)) {
+                return;
+            }
+            throw error;
+        }
+    }
+
+    async removePermissionFromRole(roleId: string, permissionId: string): Promise<void> {
+        await db
+            .delete(rolePermissions)
+            .where(
+                and(
+                    eq(rolePermissions.roleId, roleId),
+                    eq(rolePermissions.permissionId, permissionId),
+                ),
+            );
+    }
+
     async createUser(data: NewUserRow): Promise<UserRow> {
         try {
             await db.insert(users).values(data);
@@ -132,9 +253,9 @@ export class DrizzleAuthRepository implements AuthRepository {
 
     async createUserWithInitialRole(
         data: NewUserRow,
-    ): Promise<{ user: UserRow; roles: UserRole[] }> {
+    ): Promise<{ user: UserRow; roles: UserRole[]; permissions: PermissionName[] }> {
         return db.transaction(async (tx) => {
-            await this.ensureSystemRolesTx(tx);
+            await this.ensureRbacBootstrapTx(tx);
 
             try {
                 await tx.insert(users).values(data);
@@ -179,10 +300,12 @@ export class DrizzleAuthRepository implements AuthRepository {
             });
 
             const assignedRoles = await this.getUserRolesTx(tx, data.id);
+            const assignedPermissions = await this.getUserPermissionsTx(tx, data.id);
 
             return {
                 user: createdUser,
                 roles: assignedRoles,
+                permissions: assignedPermissions,
             };
         });
     }
@@ -255,7 +378,7 @@ export class DrizzleAuthRepository implements AuthRepository {
         return getAffectedRows(result);
     }
 
-    private async ensureSystemRolesTx(tx: Parameters<Parameters<typeof db.transaction>[0]>[0]) {
+    private async ensureSystemRolesTx(tx: Tx) {
         for (const role of SYSTEM_ROLE_DEFINITIONS) {
             await tx.execute(
                 sql`INSERT IGNORE INTO roles (id, name, label) VALUES (${randomUUID()}, ${role.name}, ${role.label})`,
@@ -263,18 +386,55 @@ export class DrizzleAuthRepository implements AuthRepository {
         }
     }
 
-    private async findRoleByNameTx(
-        tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
-        name: UserRole,
-    ): Promise<RoleRow | null> {
+    private async ensureSystemPermissionsTx(tx: Tx) {
+        for (const permission of SYSTEM_PERMISSION_DEFINITIONS) {
+            await tx.execute(
+                sql`INSERT IGNORE INTO permissions (id, name, label, description) VALUES (${randomUUID()}, ${permission.name}, ${permission.label}, ${permission.description})`,
+            );
+        }
+    }
+
+    private async ensureDefaultRolePermissionsTx(tx: Tx) {
+        const adminRole = await this.findRoleByNameTx(tx, "admin");
+        const userRole = await this.findRoleByNameTx(tx, "user");
+
+        if (!adminRole || !userRole) {
+            throw new Error("Required roles are missing during RBAC bootstrap.");
+        }
+
+        const allPermissions = await tx.select().from(permissions);
+        const byName = new Map(allPermissions.map((permission) => [permission.name, permission]));
+
+        for (const permission of allPermissions) {
+            await tx.execute(
+                sql`INSERT IGNORE INTO role_permissions (role_id, permission_id) VALUES (${adminRole.id}, ${permission.id})`,
+            );
+        }
+
+        for (const permissionName of DEFAULT_USER_PERMISSIONS) {
+            const permission = byName.get(permissionName);
+            if (!permission) {
+                throw new Error(`Required default permission ${permissionName} does not exist.`);
+            }
+
+            await tx.execute(
+                sql`INSERT IGNORE INTO role_permissions (role_id, permission_id) VALUES (${userRole.id}, ${permission.id})`,
+            );
+        }
+    }
+
+    private async ensureRbacBootstrapTx(tx: Tx) {
+        await this.ensureSystemRolesTx(tx);
+        await this.ensureSystemPermissionsTx(tx);
+        await this.ensureDefaultRolePermissionsTx(tx);
+    }
+
+    private async findRoleByNameTx(tx: Tx, name: UserRole): Promise<RoleRow | null> {
         const rows = await tx.select().from(roles).where(eq(roles.name, name)).limit(1);
         return rows[0] ?? null;
     }
 
-    private async getUserRolesTx(
-        tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
-        userId: string,
-    ): Promise<UserRole[]> {
+    private async getUserRolesTx(tx: Tx, userId: string): Promise<UserRole[]> {
         const rows = await tx
             .select({ roleName: roles.name })
             .from(userRoles)
@@ -282,5 +442,16 @@ export class DrizzleAuthRepository implements AuthRepository {
             .where(eq(userRoles.userId, userId));
 
         return rows.map((row) => row.roleName as UserRole);
+    }
+
+    private async getUserPermissionsTx(tx: Tx, userId: string): Promise<PermissionName[]> {
+        const rows = await tx
+            .selectDistinct({ permissionName: permissions.name })
+            .from(userRoles)
+            .innerJoin(rolePermissions, eq(rolePermissions.roleId, userRoles.roleId))
+            .innerJoin(permissions, eq(permissions.id, rolePermissions.permissionId))
+            .where(eq(userRoles.userId, userId));
+
+        return rows.map((row) => row.permissionName);
     }
 }

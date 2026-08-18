@@ -73,7 +73,7 @@ export class SocialAuthService {
                     providerEmail: email,
                 },
             );
-            await this.authRepository.ensureSystemRoles();
+            await this.authRepository.ensureRbacBootstrap();
             await this.authRepository.assignRoleToUser(created.user.id, "user");
 
             return this.authService.createSessionForUser(created.user, context);

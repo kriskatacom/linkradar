@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { buildApp } from "../src/app.js";
 import { getApiEnv } from "../src/config/env.js";
+import { SYSTEM_PERMISSIONS } from "../src/modules/auth/rbac/system-permissions.js";
 import { MemoryAuthRepository } from "./memory-auth.repository.js";
 
 function cookieHeader(setCookie: string | string[] | undefined): string {
@@ -28,6 +29,8 @@ describe("auth routes", () => {
         expect(body.success).toBe(true);
         expect(body.data.user.email).toBe("user@example.com");
         expect(body.data.accessToken).toEqual(expect.any(String));
+        expect(body.data.user.roles).toEqual(["admin"]);
+        expect(body.data.user.permissions).toContain(SYSTEM_PERMISSIONS.ADMIN_ACCESS);
         expect(body.data.user).not.toHaveProperty("passwordHash");
         expect(JSON.stringify(body)).not.toContain("password_hash");
 
@@ -85,6 +88,7 @@ describe("auth routes", () => {
         expect(response.statusCode).toBe(200);
         expect(response.json().data.user.email).toBe("user@example.com");
         expect(response.json().data.user.roles).toEqual(["admin"]);
+        expect(response.json().data.user.permissions).toContain(SYSTEM_PERMISSIONS.ADMIN_ACCESS);
 
         await app.close();
     });
@@ -208,6 +212,39 @@ describe("auth routes", () => {
         });
         expect(allowed.statusCode).toBe(200);
         expect(allowed.json().data.message).toBe("Admin access granted.");
+
+        const anonymous = await app.inject({
+            method: "GET",
+            url: "/api/admin/test",
+        });
+        expect(anonymous.statusCode).toBe(401);
+
+        const sitesAllowed = await app.inject({
+            method: "GET",
+            url: "/api/permissions/test/sites-view",
+            headers: {
+                authorization: `Bearer ${userAccessToken}`,
+            },
+        });
+        expect(sitesAllowed.statusCode).toBe(200);
+
+        const usersManageForbidden = await app.inject({
+            method: "GET",
+            url: "/api/permissions/test/users-manage-any",
+            headers: {
+                authorization: `Bearer ${userAccessToken}`,
+            },
+        });
+        expect(usersManageForbidden.statusCode).toBe(403);
+
+        const allPermissionsAllowed = await app.inject({
+            method: "GET",
+            url: "/api/permissions/test/sites-read-write",
+            headers: {
+                authorization: `Bearer ${userAccessToken}`,
+            },
+        });
+        expect(allPermissionsAllowed.statusCode).toBe(200);
 
         await app.close();
     });

@@ -2,9 +2,15 @@ import rateLimit from "@fastify/rate-limit";
 import type { FastifyPluginAsync } from "fastify";
 
 import { getApiEnv } from "../config/env.js";
-import { createAuthMiddleware, createRequireAnyRole } from "../middleware/auth.middleware.js";
+import {
+    createAuthMiddleware,
+    createRequireAllPermissions,
+    createRequireAnyPermission,
+    createRequirePermission,
+} from "../middleware/auth.middleware.js";
 import { AuthController } from "../modules/auth/auth.controller.js";
 import type { AuthRepository } from "../modules/auth/auth.repository.js";
+import { SYSTEM_PERMISSIONS } from "../modules/auth/rbac/system-permissions.js";
 import { authRoutes } from "../modules/auth/auth.routes.js";
 import { AuthService } from "../modules/auth/auth.service.js";
 import { HttpSocialProfileFetcher } from "../modules/auth/social/providers/index.js";
@@ -43,9 +49,18 @@ export const authPlugin: FastifyPluginAsync<AuthPluginOptions> = async (app, opt
     const socialAuthService = new SocialAuthService(repository, socialRepository, service);
     const controller = new AuthController(service);
     const profileFetcher = options.socialProfileFetcher ?? new HttpSocialProfileFetcher();
-    await repository.ensureSystemRoles();
+    await repository.ensureRbacBootstrap();
     const authenticate = createAuthMiddleware(service);
-    const requireAdmin = createRequireAnyRole(["admin"]);
+    const requireAdminAccess = createRequirePermission(SYSTEM_PERMISSIONS.ADMIN_ACCESS);
+    const requireSitesView = createRequirePermission(SYSTEM_PERMISSIONS.SITES_VIEW);
+    const requireAnyUserManage = createRequireAnyPermission([
+        SYSTEM_PERMISSIONS.USERS_UPDATE,
+        SYSTEM_PERMISSIONS.USERS_ROLES_MANAGE,
+    ]);
+    const requireSiteReadWrite = createRequireAllPermissions([
+        SYSTEM_PERMISSIONS.SITES_VIEW,
+        SYSTEM_PERMISSIONS.SITES_UPDATE,
+    ]);
 
     await app.register(
         async (authApp) => {
@@ -71,7 +86,7 @@ export const authPlugin: FastifyPluginAsync<AuthPluginOptions> = async (app, opt
 
     await app.register(
         async (adminApp) => {
-            adminApp.get("/test", { preHandler: [authenticate, requireAdmin] }, async () => ({
+            adminApp.get("/test", { preHandler: [authenticate, requireAdminAccess] }, async () => ({
                 success: true,
                 data: {
                     message: "Admin access granted.",
@@ -79,5 +94,33 @@ export const authPlugin: FastifyPluginAsync<AuthPluginOptions> = async (app, opt
             }));
         },
         { prefix: "/api/admin" },
+    );
+
+    await app.register(
+        async (permissionApp) => {
+            permissionApp.get("/sites-view", { preHandler: [authenticate, requireSitesView] }, async () => ({
+                success: true,
+                data: { message: "Sites view access granted." },
+            }));
+
+            permissionApp.get(
+                "/users-manage-any",
+                { preHandler: [authenticate, requireAnyUserManage] },
+                async () => ({
+                    success: true,
+                    data: { message: "User management permission granted." },
+                }),
+            );
+
+            permissionApp.get(
+                "/sites-read-write",
+                { preHandler: [authenticate, requireSiteReadWrite] },
+                async () => ({
+                    success: true,
+                    data: { message: "Site read/write permissions granted." },
+                }),
+            );
+        },
+        { prefix: "/api/permissions/test" },
     );
 };

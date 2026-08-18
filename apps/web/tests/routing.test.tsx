@@ -26,6 +26,7 @@ function createStore(authenticated: boolean) {
                     email: "user@example.com",
                     emailVerified: false,
                     roles: ["admin"],
+                    permissions: ["admin.access"],
                 },
                 accessToken: "token",
             }),

@@ -2,6 +2,10 @@ export { checkDatabaseConnection, db } from "./db.js";
 export {
     authSessions,
     authSessionsRelations,
+    permissions,
+    permissionsRelations,
+    rolePermissions,
+    rolePermissionsRelations,
     roles,
     rolesRelations,
     systemState,

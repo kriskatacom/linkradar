@@ -15,6 +15,13 @@
       "when": 1787016149899,
       "tag": "0001_equal_maginty",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1787017074883,
+      "tag": "0002_shallow_the_professor",
+      "breakpoints": true
     }
   ]
 }

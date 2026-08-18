@@ -15,7 +15,8 @@ import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Sidebar } from "@/components/ui/sidebar";
 import { useLogoutMutation } from "@/features/auth/api/authApi";
-import { useHasRole } from "@/features/auth/hooks/use-has-role";
+import { useHasPermission } from "@/features/auth/hooks/use-has-permission";
+import { SYSTEM_PERMISSIONS } from "@/features/auth/system-permissions";
 import { useAppSelector } from "@/hooks/redux";
 import { cn } from "@/lib/utils";
 
@@ -86,7 +87,7 @@ export function AppShell() {
     const [menuOpen, setMenuOpen] = useState(false);
     const [logout, { isLoading: isLoggingOut }] = useLogoutMutation();
     const user = useAppSelector((state) => state.auth.user);
-    const isAdmin = useHasRole("admin");
+    const isAdmin = useHasPermission(SYSTEM_PERMISSIONS.ADMIN_ACCESS);
     const navigate = useNavigate();
 
     const initials = useMemo(() => {

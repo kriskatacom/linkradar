@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { hashRefreshToken } from "../src/lib/tokens.js";
 import { AuthError } from "../src/modules/auth/auth.errors.js";
+import { SYSTEM_PERMISSIONS } from "../src/modules/auth/rbac/system-permissions.js";
 import { AuthService } from "../src/modules/auth/auth.service.js";
 import type { AuthSessionRow, UserRow } from "../src/modules/auth/auth.types.js";
 import { MemoryAuthRepository } from "./memory-auth.repository.js";
@@ -64,6 +65,7 @@ describe("AuthService register", () => {
         expect(storedSession?.refreshTokenHash).toBe(hashRefreshToken(result.refreshToken));
         expect(storedSession?.refreshTokenHash).not.toBe(result.refreshToken);
         expect(result.user.roles).toEqual(["admin"]);
+        expect(result.user.permissions).toContain(SYSTEM_PERMISSIONS.ADMIN_ACCESS);
     });
 
     it("assigns admin to first user, then user role to next users", async () => {
@@ -415,6 +417,7 @@ describe("AuthService me", () => {
         const current = await service.authenticateAccessToken(first.accessToken);
         expect(current.user.email).toBe("user@example.com");
         expect(current.user.roles).toEqual(["admin"]);
+        expect(current.user.permissions).toContain(SYSTEM_PERMISSIONS.ADMIN_ACCESS);
     });
 
     it("rejects an invalid access token", async () => {
@@ -583,5 +586,139 @@ describe("AuthService roles", () => {
         const roles = await repository.getUserRoles(first.user.id);
 
         expect(roles).toEqual(["admin"]);
+    });
+});
+
+describe("AuthService permissions", () => {
+    it("bootstraps permissions idempotently", async () => {
+        const repository = new MemoryAuthRepository();
+
+        await repository.ensureRbacBootstrap();
+        await repository.ensureRbacBootstrap();
+
+        expect(repository.permissions.size).toBeGreaterThan(0);
+        const adminRole = await repository.findRoleByName("admin");
+        const userRole = await repository.findRoleByName("user");
+        expect(adminRole).not.toBeNull();
+        expect(userRole).not.toBeNull();
+    });
+
+    it("admin gets all system permissions and user gets only allow-list", async () => {
+        const repository = new MemoryAuthRepository();
+        const service = new AuthService(repository);
+
+        const admin = await service.register(
+            {
+                name: "Admin",
+                email: "admin@example.com",
+                password: "StrongPassword123",
+            },
+            context,
+        );
+        const user = await service.register(
+            {
+                name: "User",
+                email: "user@example.com",
+                password: "StrongPassword123",
+            },
+            context,
+        );
+
+        expect(admin.user.permissions.length).toBe(25);
+        expect(admin.user.permissions).toContain(SYSTEM_PERMISSIONS.USERS_VIEW);
+        expect(user.user.permissions).toContain(SYSTEM_PERMISSIONS.SITES_VIEW);
+        expect(user.user.permissions).not.toContain(SYSTEM_PERMISSIONS.USERS_VIEW);
+        expect(user.user.permissions).not.toContain(SYSTEM_PERMISSIONS.ADMIN_ACCESS);
+    });
+
+    it("user permission union across multiple roles has no duplicates", async () => {
+        const repository = new MemoryAuthRepository();
+        const service = new AuthService(repository);
+        const user = await service.register(
+            {
+                name: "User",
+                email: "user@example.com",
+                password: "StrongPassword123",
+            },
+            context,
+        );
+
+        repository.roles.set("manager", {
+            id: "role-manager",
+            name: "manager",
+            label: "Manager",
+            createdAt: new Date(),
+            updatedAt: new Date(),
+        });
+        await repository.assignRoleToUser(user.user.id, "manager");
+
+        const reportsExport = await repository.findPermissionByName(SYSTEM_PERMISSIONS.REPORTS_EXPORT);
+        const sitesView = await repository.findPermissionByName(SYSTEM_PERMISSIONS.SITES_VIEW);
+        if (!reportsExport || !sitesView) {
+            throw new Error("Missing seeded permissions.");
+        }
+        await repository.assignPermissionToRole("role-manager", reportsExport.id);
+        await repository.assignPermissionToRole("role-manager", sitesView.id);
+
+        const permissions = await repository.getUserPermissions(user.user.id);
+
+        expect(permissions).toContain(SYSTEM_PERMISSIONS.SITES_VIEW);
+        expect(permissions).toContain(SYSTEM_PERMISSIONS.REPORTS_EXPORT);
+        expect(permissions.filter((name) => name === SYSTEM_PERMISSIONS.SITES_VIEW)).toHaveLength(1);
+    });
+
+    it("admin gets newly added permissions after bootstrap, user does not", async () => {
+        const repository = new MemoryAuthRepository();
+        const service = new AuthService(repository);
+        const admin = await service.register(
+            {
+                name: "Admin",
+                email: "admin@example.com",
+                password: "StrongPassword123",
+            },
+            context,
+        );
+        const user = await service.register(
+            {
+                name: "User",
+                email: "user@example.com",
+                password: "StrongPassword123",
+            },
+            context,
+        );
+
+        repository.permissions.set("billing.view", {
+            id: "perm-billing-view",
+            name: "billing.view",
+            label: "View billing",
+            description: "Allows viewing billing information.",
+            createdAt: new Date(),
+            updatedAt: new Date(),
+        });
+        await repository.ensureDefaultRolePermissions();
+
+        const adminPermissions = await repository.getUserPermissions(admin.user.id);
+        const userPermissions = await repository.getUserPermissions(user.user.id);
+
+        expect(adminPermissions).toContain("billing.view");
+        expect(userPermissions).not.toContain("billing.view");
+    });
+
+    it("prevents duplicate role-permission assignments", async () => {
+        const repository = new MemoryAuthRepository();
+        await repository.ensureRbacBootstrap();
+        const adminRole = await repository.findRoleByName("admin");
+        const permission = await repository.findPermissionByName(SYSTEM_PERMISSIONS.ADMIN_ACCESS);
+        if (!adminRole || !permission) {
+            throw new Error("Required RBAC records are missing.");
+        }
+
+        await repository.assignPermissionToRole(adminRole.id, permission.id);
+        await repository.assignPermissionToRole(adminRole.id, permission.id);
+
+        const rolePermissions = await repository.getRolePermissions(adminRole.id);
+        expect(rolePermissions.filter((name) => name === SYSTEM_PERMISSIONS.ADMIN_ACCESS)).toHaveLength(
+            1,
+        );
     });
 });

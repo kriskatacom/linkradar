@@ -3,11 +3,17 @@ import type {
     AuthSessionRow,
     NewAuthSessionRow,
     NewUserRow,
+    PermissionName,
+    PermissionRow,
     RoleRow,
     UserRole,
     UserRow,
 } from "../src/modules/auth/auth.types.js";
 import { emailAlreadyExistsError } from "../src/modules/auth/auth.errors.js";
+import {
+    DEFAULT_USER_PERMISSIONS,
+    SYSTEM_PERMISSION_DEFINITIONS,
+} from "../src/modules/auth/rbac/system-permissions.js";
 import {
     DuplicateSocialIdentityError,
     type NewUserSocialAccountRow,
@@ -49,8 +55,10 @@ export class MemoryAuthRepository implements AuthRepository, SocialAuthRepositor
     readonly users = new Map<string, UserRow>();
     readonly sessions = new Map<string, AuthSessionRow>();
     readonly socialAccounts = new Map<string, UserSocialAccountRow>();
-    readonly roles = new Map<UserRole, RoleRow>();
+    readonly roles = new Map<string, RoleRow>();
+    readonly permissions = new Map<string, PermissionRow>();
     readonly userRoles = new Map<string, Set<UserRole>>();
+    readonly rolePermissions = new Map<string, Set<string>>();
     initialAdminUserId: string | null = null;
 
     async ensureSystemRoles(): Promise<void> {
@@ -74,6 +82,51 @@ export class MemoryAuthRepository implements AuthRepository, SocialAuthRepositor
         }
     }
 
+    async ensureSystemPermissions(): Promise<void> {
+        for (const definition of SYSTEM_PERMISSION_DEFINITIONS) {
+            if (!this.permissions.has(definition.name)) {
+                const now = new Date();
+                this.permissions.set(definition.name, {
+                    id: `perm-${definition.name}`,
+                    name: definition.name,
+                    label: definition.label,
+                    description: definition.description,
+                    createdAt: now,
+                    updatedAt: now,
+                });
+            }
+        }
+    }
+
+    async ensureDefaultRolePermissions(): Promise<void> {
+        await this.ensureSystemRoles();
+        await this.ensureSystemPermissions();
+
+        const adminRole = this.roles.get("admin");
+        const userRole = this.roles.get("user");
+        if (!adminRole || !userRole) {
+            throw new Error("Required roles are missing.");
+        }
+
+        for (const permission of this.permissions.values()) {
+            await this.assignPermissionToRole(adminRole.id, permission.id);
+        }
+
+        for (const permissionName of DEFAULT_USER_PERMISSIONS) {
+            const permission = this.permissions.get(permissionName);
+            if (!permission) {
+                throw new Error(`Permission ${permissionName} is missing.`);
+            }
+            await this.assignPermissionToRole(userRole.id, permission.id);
+        }
+    }
+
+    async ensureRbacBootstrap(): Promise<void> {
+        await this.ensureSystemRoles();
+        await this.ensureSystemPermissions();
+        await this.ensureDefaultRolePermissions();
+    }
+
     async findUserByEmail(email: string): Promise<UserRow | null> {
         return [...this.users.values()].find((user) => user.email === email) ?? null;
     }
@@ -86,9 +139,50 @@ export class MemoryAuthRepository implements AuthRepository, SocialAuthRepositor
         return this.roles.get(name) ?? null;
     }
 
+    async findPermissionByName(name: PermissionName): Promise<PermissionRow | null> {
+        return this.permissions.get(name) ?? null;
+    }
+
+    async getPermissions(): Promise<PermissionRow[]> {
+        return [...this.permissions.values()];
+    }
+
     async getUserRoles(userId: string): Promise<UserRole[]> {
         const assigned = this.userRoles.get(userId);
         return assigned ? [...assigned.values()] : [];
+    }
+
+    async getRolePermissions(roleId: string): Promise<PermissionName[]> {
+        const permissionIds = this.rolePermissions.get(roleId) ?? new Set<string>();
+        const names: PermissionName[] = [];
+
+        for (const permissionId of permissionIds) {
+            const permission = [...this.permissions.values()].find((item) => item.id === permissionId);
+            if (permission) {
+                names.push(permission.name);
+            }
+        }
+
+        return names;
+    }
+
+    async getUserPermissions(userId: string): Promise<PermissionName[]> {
+        const roleNames = await this.getUserRoles(userId);
+        const permissionNames = new Set<PermissionName>();
+
+        for (const roleName of roleNames) {
+            const role = this.roles.get(roleName);
+            if (!role) {
+                continue;
+            }
+
+            const rolePermissions = await this.getRolePermissions(role.id);
+            for (const permissionName of rolePermissions) {
+                permissionNames.add(permissionName);
+            }
+        }
+
+        return [...permissionNames.values()];
     }
 
     async userHasRole(userId: string, roleName: UserRole): Promise<boolean> {
@@ -96,11 +190,35 @@ export class MemoryAuthRepository implements AuthRepository, SocialAuthRepositor
         return assigned ? assigned.has(roleName) : false;
     }
 
+    async roleHasPermission(roleId: string, permissionName: PermissionName): Promise<boolean> {
+        const rolePermissionNames = await this.getRolePermissions(roleId);
+        return rolePermissionNames.includes(permissionName);
+    }
+
+    async userHasPermission(userId: string, permissionName: PermissionName): Promise<boolean> {
+        const permissionNames = await this.getUserPermissions(userId);
+        return permissionNames.includes(permissionName);
+    }
+
     async assignRoleToUser(userId: string, roleName: UserRole): Promise<void> {
         await this.ensureSystemRoles();
         const current = this.userRoles.get(userId) ?? new Set<UserRole>();
         current.add(roleName);
         this.userRoles.set(userId, current);
+    }
+
+    async assignPermissionToRole(roleId: string, permissionId: string): Promise<void> {
+        const current = this.rolePermissions.get(roleId) ?? new Set<string>();
+        current.add(permissionId);
+        this.rolePermissions.set(roleId, current);
+    }
+
+    async removePermissionFromRole(roleId: string, permissionId: string): Promise<void> {
+        const current = this.rolePermissions.get(roleId);
+        if (!current) {
+            return;
+        }
+        current.delete(permissionId);
     }
 
     async createUser(data: NewUserRow): Promise<UserRow> {
@@ -115,8 +233,8 @@ export class MemoryAuthRepository implements AuthRepository, SocialAuthRepositor
 
     async createUserWithInitialRole(
         data: NewUserRow,
-    ): Promise<{ user: UserRow; roles: UserRole[] }> {
-        await this.ensureSystemRoles();
+    ): Promise<{ user: UserRow; roles: UserRole[]; permissions: PermissionName[] }> {
+        await this.ensureRbacBootstrap();
         const user = await this.createUser(data);
 
         if (!this.initialAdminUserId) {
@@ -129,6 +247,7 @@ export class MemoryAuthRepository implements AuthRepository, SocialAuthRepositor
         return {
             user,
             roles: await this.getUserRoles(user.id),
+            permissions: await this.getUserPermissions(user.id),
         };
     }
 

@@ -1,12 +1,15 @@
-import type { authSessions, roles, users } from "@link-radar/database";
+import type { authSessions, permissions, roles, users } from "@link-radar/database";
+import type { SystemPermission } from "./rbac/system-permissions.js";
 
 export type UserRow = typeof users.$inferSelect;
 export type NewUserRow = typeof users.$inferInsert;
 export type AuthSessionRow = typeof authSessions.$inferSelect;
 export type NewAuthSessionRow = typeof authSessions.$inferInsert;
 export type RoleRow = typeof roles.$inferSelect;
+export type PermissionRow = typeof permissions.$inferSelect;
 
-export type UserRole = "admin" | "user";
+export type UserRole = "admin" | "user" | string;
+export type PermissionName = SystemPermission | string;
 
 export type AuthenticatedUser = {
     id: string;
@@ -14,6 +17,7 @@ export type AuthenticatedUser = {
     email: string;
     emailVerified: boolean;
     roles: UserRole[];
+    permissions: PermissionName[];
 };
 
 export type AccessTokenPayload = {
@@ -46,12 +50,17 @@ export type ErrorResponse = {
     };
 };
 
-export function toAuthenticatedUser(user: UserRow, roles: UserRole[]): AuthenticatedUser {
+export function toAuthenticatedUser(
+    user: UserRow,
+    roles: UserRole[],
+    permissions: PermissionName[],
+): AuthenticatedUser {
     return {
         id: user.id,
         name: user.name,
         email: user.email,
         emailVerified: user.emailVerifiedAt !== null,
         roles,
+        permissions,
     };
 }

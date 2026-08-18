@@ -21,6 +21,7 @@ import type {
     AuthenticatedUser,
     AuthSessionRow,
     AuthTokensResult,
+    PermissionName,
     RequestContext,
     UserRole,
     UserRow,
@@ -48,7 +49,7 @@ export class AuthService {
             deletedAt: null,
         });
 
-        return this.createSessionForUser(created.user, context, created.roles);
+        return this.createSessionForUser(created.user, context, created.roles, created.permissions);
     }
 
     async login(input: LoginInput, context: RequestContext): Promise<AuthTokensResult> {
@@ -118,8 +119,10 @@ export class AuthService {
             throw invalidRefreshTokenError();
         }
 
+        const { roles, permissions } = await this.loadUserAuthorization(user.id);
+
         return {
-            user: toAuthenticatedUser(user, await this.repository.getUserRoles(user.id)),
+            user: toAuthenticatedUser(user, roles, permissions),
             accessToken: await signAccessToken({
                 sub: user.id,
                 sessionId: session.id,
@@ -162,16 +165,15 @@ export class AuthService {
             throw unauthenticatedError();
         }
 
-        return {
-            user: toAuthenticatedUser(user, await this.repository.getUserRoles(user.id)),
-            sessionId: session.id,
-        };
+        const { roles, permissions } = await this.loadUserAuthorization(user.id);
+        return { user: toAuthenticatedUser(user, roles, permissions), sessionId: session.id };
     }
 
     async createSessionForUser(
         user: UserRow,
         context: RequestContext,
         knownRoles?: UserRole[],
+        knownPermissions?: PermissionName[],
     ): Promise<AuthTokensResult> {
         const sessionId = randomUUID();
         const refreshToken = generateRefreshToken();
@@ -186,11 +188,11 @@ export class AuthService {
             revokedAt: null,
         });
 
+        const roles = knownRoles ?? (await this.repository.getUserRoles(user.id));
+        const permissions = knownPermissions ?? (await this.repository.getUserPermissions(user.id));
+
         return {
-            user: toAuthenticatedUser(
-                user,
-                knownRoles ?? (await this.repository.getUserRoles(user.id)),
-            ),
+            user: toAuthenticatedUser(user, roles, permissions),
             accessToken: await signAccessToken({
                 sub: user.id,
                 sessionId,
@@ -225,5 +227,16 @@ export class AuthService {
         const expiresAt = new Date();
         expiresAt.setDate(expiresAt.getDate() + getApiEnv().refreshTokenDays);
         return expiresAt;
+    }
+
+    private async loadUserAuthorization(
+        userId: string,
+    ): Promise<{ roles: UserRole[]; permissions: PermissionName[] }> {
+        const [roles, permissions] = await Promise.all([
+            this.repository.getUserRoles(userId),
+            this.repository.getUserPermissions(userId),
+        ]);
+
+        return { roles, permissions };
     }
 }

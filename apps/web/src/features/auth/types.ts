@@ -1,4 +1,5 @@
-export type UserRole = "admin" | "user";
+export type UserRole = "admin" | "user" | string;
+export type PermissionName = string;
 
 export type AuthUser = {
     id: string;
@@ -6,6 +7,7 @@ export type AuthUser = {
     email: string;
     emailVerified: boolean;
     roles: UserRole[];
+    permissions: PermissionName[];
 };
 
 export type SuccessResponse<T> = {
