@@ -8,7 +8,7 @@ import {
     setRefreshCookie,
 } from "../../lib/auth-cookies.js";
 import { AuthError, unauthenticatedError, validationError } from "./auth.errors.js";
-import { loginBodySchema, registerBodySchema } from "./auth.schemas.js";
+import { loginBodySchema, registerBodySchema, updateThemeBodySchema } from "./auth.schemas.js";
 import type { AuthService } from "./auth.service.js";
 
 function fieldsFromZodError(error: ZodError): Record<string, string[]> {
@@ -109,6 +109,29 @@ export class AuthController {
             success: true,
             data: {
                 user: auth.user,
+            },
+        });
+    };
+
+    updateTheme = async (request: FastifyRequest, reply: FastifyReply) => {
+        const auth = request.auth;
+
+        if (!auth) {
+            throw unauthenticatedError();
+        }
+
+        const parsed = updateThemeBodySchema.safeParse(request.body);
+
+        if (!parsed.success) {
+            throw validationError(fieldsFromZodError(parsed.error));
+        }
+
+        const user = await this.service.updateTheme(auth.user.id, parsed.data.theme);
+
+        return reply.status(200).send({
+            success: true,
+            data: {
+                user,
             },
         });
     };

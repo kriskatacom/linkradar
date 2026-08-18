@@ -9,6 +9,7 @@ export const users = mysqlTable(
         passwordHash: varchar("password_hash", { length: 255 }),
         emailVerifiedAt: datetime("email_verified_at", { mode: "date" }),
         isActive: boolean("is_active").notNull().default(true),
+        theme: varchar("theme", { length: 16 }).notNull().default("system"),
         deletedAt: datetime("deleted_at", { mode: "date" }),
         createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
         updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow().onUpdateNow(),

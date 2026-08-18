@@ -10,6 +10,7 @@ import type {
 
 type LogoutResponse = SuccessResponse<{ loggedOut: true }>;
 type MeResponse = SuccessResponse<{ user: AuthUser }>;
+type ThemePreference = AuthUser["theme"];
 
 export const authApi = api.injectEndpoints({
     endpoints: (builder) => ({
@@ -62,6 +63,29 @@ export const authApi = api.injectEndpoints({
                 dispatch(setUser(data.data.user));
             },
         }),
+        updateTheme: builder.mutation<MeResponse, { theme: ThemePreference }>({
+            query: (body) => ({
+                url: "/api/auth/me",
+                method: "PATCH",
+                body,
+            }),
+            async onQueryStarted(body, { dispatch, getState, queryFulfilled }) {
+                const previous = (getState() as unknown as { auth: { user: AuthUser | null } }).auth
+                    .user;
+                if (previous) {
+                    dispatch(setUser({ ...previous, theme: body.theme }));
+                }
+
+                try {
+                    const { data } = await queryFulfilled;
+                    dispatch(setUser(data.data.user));
+                } catch {
+                    if (previous) {
+                        dispatch(setUser(previous));
+                    }
+                }
+            },
+        }),
     }),
 });
 
@@ -72,4 +96,5 @@ export const {
     useLogoutMutation,
     useMeQuery,
     useLazyMeQuery,
+    useUpdateThemeMutation,
 } = authApi;

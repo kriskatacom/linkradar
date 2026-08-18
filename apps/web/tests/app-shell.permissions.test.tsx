@@ -53,6 +53,7 @@ function createStore(permissions: string[]) {
                 name: "Kristian",
                 email: "user@example.com",
                 emailVerified: true,
+                theme: "system",
                 roles: ["user"],
                 permissions,
             },

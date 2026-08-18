@@ -26,6 +26,8 @@ export type ApiEnv = {
     refreshTokenDays: number;
     cookieSecure: boolean;
     cookieSameSite: CookieSameSite;
+    cookieDomain: string | undefined;
+    cookiePartitioned: boolean;
     authCookieName: string;
     authCookiePath: string;
     rateLimitMax: number;
@@ -96,6 +98,44 @@ function parseSameSite(raw: string): CookieSameSite {
     throw new Error("Invalid environment variable: AUTH_COOKIE_SAMESITE");
 }
 
+function parseBoolean(name: string, raw: string): boolean {
+    if (raw === "true") {
+        return true;
+    }
+
+    if (raw === "false") {
+        return false;
+    }
+
+    throw new Error(`Invalid environment variable: ${name}`);
+}
+
+function optionalBoolean(name: string, fallback: boolean): boolean {
+    const value = process.env[name];
+
+    if (value === undefined || value.trim() === "") {
+        return fallback;
+    }
+
+    return parseBoolean(name, value.trim());
+}
+
+export function isHttpsUrl(value: string): boolean {
+    try {
+        return new URL(value).protocol === "https:";
+    } catch {
+        return false;
+    }
+}
+
+export function isAllowedFrontendOrigin(origin: string, frontendUrl: string): boolean {
+    try {
+        return new URL(origin).origin === new URL(frontendUrl).origin;
+    } catch {
+        return origin.replace(/\/$/, "") === frontendUrl.replace(/\/$/, "");
+    }
+}
+
 function optionalOAuthConfig(prefix: string): OAuthClientConfig | null {
     const clientId = process.env[`${prefix}_CLIENT_ID`]?.trim() ?? "";
     const clientSecret = process.env[`${prefix}_CLIENT_SECRET`]?.trim() ?? "";
@@ -129,20 +169,29 @@ export function getApiEnv(): ApiEnv {
         throw new Error("JWT_ACCESS_SECRET must be at least 32 characters.");
     }
 
+    const frontendUrl = requireEnv("FRONTEND_URL");
+    const frontendIsHttps = isHttpsUrl(frontendUrl);
+
     const cookieSameSite = process.env.AUTH_COOKIE_SAMESITE
         ? parseSameSite(process.env.AUTH_COOKIE_SAMESITE)
-        : isProduction
+        : frontendIsHttps || isProduction
           ? "none"
           : "lax";
 
-    const cookieSecure =
-        optionalEnv("AUTH_COOKIE_SECURE", isProduction ? "true" : "false") === "true";
+    const cookieSecure = optionalBoolean(
+        "AUTH_COOKIE_SECURE",
+        isProduction || frontendIsHttps || cookieSameSite === "none",
+    );
 
-    if (cookieSameSite === "none" && !cookieSecure && isProduction) {
-        throw new Error(
-            "AUTH_COOKIE_SAMESITE=none requires AUTH_COOKIE_SECURE=true in production.",
-        );
+    if (cookieSameSite === "none" && !cookieSecure) {
+        throw new Error("AUTH_COOKIE_SAMESITE=none requires AUTH_COOKIE_SECURE=true.");
     }
+
+    const cookieDomain = process.env.AUTH_COOKIE_DOMAIN?.trim() || undefined;
+    const cookiePartitioned = optionalBoolean(
+        "AUTH_COOKIE_PARTITIONED",
+        cookieSameSite === "none" && cookieSecure,
+    );
 
     cached = {
         nodeEnv,
@@ -150,7 +199,7 @@ export function getApiEnv(): ApiEnv {
         isDevelopment: nodeEnv === "development",
         host: optionalEnv("API_HOST", "127.0.0.1"),
         port: parsePositiveInteger("API_PORT", optionalEnv("API_PORT", "3000")),
-        frontendUrl: requireEnv("FRONTEND_URL"),
+        frontendUrl,
         jwtAccessSecret,
         jwtAccessTtlSeconds: parseDurationSeconds(
             "JWT_ACCESS_TTL",
@@ -162,6 +211,8 @@ export function getApiEnv(): ApiEnv {
         ),
         cookieSecure,
         cookieSameSite,
+        cookieDomain,
+        cookiePartitioned,
         authCookieName: optionalEnv("AUTH_COOKIE_NAME", "refresh_token"),
         authCookiePath: optionalEnv("AUTH_COOKIE_PATH", "/api/auth"),
         rateLimitMax: parsePositiveInteger(

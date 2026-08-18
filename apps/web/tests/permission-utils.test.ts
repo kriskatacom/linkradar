@@ -7,6 +7,7 @@ const user = {
     name: "Kristian",
     email: "user@example.com",
     emailVerified: true,
+    theme: "system" as const,
     roles: ["user"],
     permissions: ["sites.view", "reports.export"],
 };

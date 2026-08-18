@@ -21,6 +21,7 @@ import type {
     PermissionName,
     PermissionRow,
     RoleRow,
+    ThemePreference,
     UserRole,
     UserRow,
 } from "./auth.types.js";
@@ -378,6 +379,15 @@ export class DrizzleAuthRepository implements AuthRepository {
     async deleteSessionsForUser(userId: string): Promise<number> {
         const result = await db.delete(authSessions).where(eq(authSessions.userId, userId));
         return getAffectedRows(result);
+    }
+
+    async updateUserTheme(userId: string, theme: ThemePreference): Promise<UserRow> {
+        await db.update(users).set({ theme }).where(eq(users.id, userId));
+        const updated = await this.findUserById(userId);
+        if (!updated) {
+            throw new Error("Failed to load updated user.");
+        }
+        return updated;
     }
 
     private async ensureSystemRolesTx(tx: Tx) {

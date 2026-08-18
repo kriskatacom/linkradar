@@ -5,6 +5,7 @@ import type {
     PermissionName,
     PermissionRow,
     RoleRow,
+    ThemePreference,
     UserRole,
     UserRow,
 } from "./auth.types.js";
@@ -47,4 +48,5 @@ export interface AuthRepository {
     deleteSessionByRefreshTokenHash(hash: string): Promise<void>;
     deleteExpiredSessions(): Promise<number>;
     deleteSessionsForUser(userId: string): Promise<number>;
+    updateUserTheme(userId: string, theme: ThemePreference): Promise<UserRow>;
 }

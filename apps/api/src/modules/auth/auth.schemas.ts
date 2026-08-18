@@ -28,5 +28,13 @@ export const loginBodySchema = z.object({
     password: z.string({ required_error: "Password is required." }).min(1, "Password is required."),
 });
 
+export const updateThemeBodySchema = z.object({
+    theme: z.enum(["light", "dark", "system"], {
+        required_error: "Theme is required.",
+        invalid_type_error: "Theme must be light, dark, or system.",
+    }),
+});
+
 export type RegisterInput = z.infer<typeof registerBodySchema>;
 export type LoginInput = z.infer<typeof loginBodySchema>;
+export type UpdateThemeInput = z.infer<typeof updateThemeBodySchema>;

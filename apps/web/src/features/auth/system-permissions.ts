@@ -19,8 +19,13 @@ export const SYSTEM_PERMISSIONS = {
 
 export type SystemPermission = (typeof SYSTEM_PERMISSIONS)[keyof typeof SYSTEM_PERMISSIONS];
 
-export function groupPermissionsByResource(permissions: Array<{ name: string; label: string; description: string | null }>) {
-    const groups = new Map<string, Array<{ name: string; label: string; description: string | null }>>();
+export function groupPermissionsByResource(
+    permissions: Array<{ name: string; label: string; description: string | null }>,
+) {
+    const groups = new Map<
+        string,
+        Array<{ name: string; label: string; description: string | null }>
+    >();
 
     for (const permission of permissions) {
         const [resource] = permission.name.split(".");

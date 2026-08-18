@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { loginBodySchema, registerBodySchema } from "../src/modules/auth/auth.schemas.js";
+import {
+    loginBodySchema,
+    registerBodySchema,
+    updateThemeBodySchema,
+} from "../src/modules/auth/auth.schemas.js";
 
 describe("registerBodySchema", () => {
     it("accepts a valid payload and lowercases email", () => {
@@ -52,5 +56,18 @@ describe("loginBodySchema", () => {
         });
 
         expect(parsed.email).toBe("user@example.com");
+    });
+});
+
+describe("updateThemeBodySchema", () => {
+    it("accepts light, dark, and system", () => {
+        expect(updateThemeBodySchema.parse({ theme: "light" }).theme).toBe("light");
+        expect(updateThemeBodySchema.parse({ theme: "dark" }).theme).toBe("dark");
+        expect(updateThemeBodySchema.parse({ theme: "system" }).theme).toBe("system");
+    });
+
+    it("rejects an unknown theme", () => {
+        const parsed = updateThemeBodySchema.safeParse({ theme: "sepia" });
+        expect(parsed.success).toBe(false);
     });
 });

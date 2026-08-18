@@ -23,6 +23,7 @@ import type {
     AuthTokensResult,
     PermissionName,
     RequestContext,
+    ThemePreference,
     UserRole,
     UserRow,
 } from "./auth.types.js";
@@ -137,6 +138,13 @@ export class AuthService {
         }
 
         await this.repository.deleteSessionByRefreshTokenHash(hashRefreshToken(refreshToken));
+    }
+
+    async updateTheme(userId: string, theme: ThemePreference): Promise<AuthenticatedUser> {
+        const user = await this.requireUsableUser(userId);
+        const updated = await this.repository.updateUserTheme(user.id, theme);
+        const { roles, permissions } = await this.loadUserAuthorization(updated.id);
+        return toAuthenticatedUser(updated, roles, permissions);
     }
 
     async deleteExpiredSessions(): Promise<number> {

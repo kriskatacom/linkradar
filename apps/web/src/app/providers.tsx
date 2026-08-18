@@ -3,6 +3,7 @@ import { Provider } from "react-redux";
 import { RouterProvider } from "react-router-dom";
 
 import { Toaster } from "@/components/ui/sonner";
+import { ThemeSync } from "@/features/settings/theme-sync";
 import { AuthBootstrap } from "./bootstrap-auth";
 import { router } from "./router";
 import { store } from "./store";
@@ -10,6 +11,7 @@ import { store } from "./store";
 export function AppProviders({ children }: { children?: ReactNode }) {
     return (
         <Provider store={store}>
+            <ThemeSync />
             <AuthBootstrap>
                 {children}
                 <RouterProvider router={router} />

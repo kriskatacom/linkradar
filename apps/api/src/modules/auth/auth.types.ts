@@ -10,12 +10,22 @@ export type PermissionRow = typeof permissions.$inferSelect;
 
 export type UserRole = "admin" | "user" | string;
 export type PermissionName = SystemPermission | string;
+export type ThemePreference = "light" | "dark" | "system";
+
+export const DEFAULT_THEME_PREFERENCE: ThemePreference = "system";
+
+export function parseThemePreference(value: unknown): ThemePreference {
+    return value === "light" || value === "dark" || value === "system"
+        ? value
+        : DEFAULT_THEME_PREFERENCE;
+}
 
 export type AuthenticatedUser = {
     id: string;
     name: string;
     email: string;
     emailVerified: boolean;
+    theme: ThemePreference;
     roles: UserRole[];
     permissions: PermissionName[];
 };
@@ -60,6 +70,7 @@ export function toAuthenticatedUser(
         name: user.name,
         email: user.email,
         emailVerified: user.emailVerifiedAt !== null,
+        theme: parseThemePreference(user.theme),
         roles,
         permissions,
     };

@@ -652,7 +652,9 @@ describe("AuthService permissions", () => {
         });
         await repository.assignRoleToUser(user.user.id, "manager");
 
-        const reportsExport = await repository.findPermissionByName(SYSTEM_PERMISSIONS.REPORTS_EXPORT);
+        const reportsExport = await repository.findPermissionByName(
+            SYSTEM_PERMISSIONS.REPORTS_EXPORT,
+        );
         const sitesView = await repository.findPermissionByName(SYSTEM_PERMISSIONS.SITES_VIEW);
         if (!reportsExport || !sitesView) {
             throw new Error("Missing seeded permissions.");
@@ -664,7 +666,9 @@ describe("AuthService permissions", () => {
 
         expect(permissions).toContain(SYSTEM_PERMISSIONS.SITES_VIEW);
         expect(permissions).toContain(SYSTEM_PERMISSIONS.REPORTS_EXPORT);
-        expect(permissions.filter((name) => name === SYSTEM_PERMISSIONS.SITES_VIEW)).toHaveLength(1);
+        expect(permissions.filter((name) => name === SYSTEM_PERMISSIONS.SITES_VIEW)).toHaveLength(
+            1,
+        );
     });
 
     it("admin gets newly added permissions after bootstrap, user does not", async () => {
@@ -717,8 +721,47 @@ describe("AuthService permissions", () => {
         await repository.assignPermissionToRole(adminRole.id, permission.id);
 
         const rolePermissions = await repository.getRolePermissions(adminRole.id);
-        expect(rolePermissions.filter((name) => name === SYSTEM_PERMISSIONS.ADMIN_ACCESS)).toHaveLength(
-            1,
+        expect(
+            rolePermissions.filter((name) => name === SYSTEM_PERMISSIONS.ADMIN_ACCESS),
+        ).toHaveLength(1);
+    });
+});
+
+describe("AuthService theme", () => {
+    it("defaults to system and stores independent preferences per user", async () => {
+        const repository = new MemoryAuthRepository();
+        const service = new AuthService(repository);
+
+        const userA = await service.register(
+            {
+                name: "User A",
+                email: "a@example.com",
+                password: "StrongPassword123",
+            },
+            context,
         );
+        const userB = await service.register(
+            {
+                name: "User B",
+                email: "b@example.com",
+                password: "StrongPassword123",
+            },
+            context,
+        );
+
+        expect(userA.user.theme).toBe("system");
+        expect(userB.user.theme).toBe("system");
+
+        const dark = await service.updateTheme(userA.user.id, "dark");
+        const light = await service.updateTheme(userB.user.id, "light");
+
+        expect(dark.theme).toBe("dark");
+        expect(light.theme).toBe("light");
+
+        const refreshedA = await service.refresh(userA.refreshToken);
+        const refreshedB = await service.refresh(userB.refreshToken);
+
+        expect(refreshedA.user.theme).toBe("dark");
+        expect(refreshedB.user.theme).toBe("light");
     });
 });

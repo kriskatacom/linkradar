@@ -14,6 +14,7 @@ import { AdminUsersPage } from "@/features/admin/pages/admin-users-page";
 import { SYSTEM_PERMISSIONS } from "@/features/auth/system-permissions";
 import { DashboardPage } from "@/features/dashboard/pages/dashboard-page";
 import { PlaceholderPage } from "@/features/dashboard/pages/placeholder-page";
+import { SettingsPage } from "@/features/settings/pages/settings-page";
 import { LoginPage } from "@/features/auth/pages/login-page";
 import { RegisterPage } from "@/features/auth/pages/register-page";
 import { AddSitePage } from "@/features/sites/pages/add-site-page";
@@ -54,7 +55,7 @@ export const router = createBrowserRouter([
                     { path: "scans", element: <PlaceholderPage title="Scans" /> },
                     { path: "issues", element: <PlaceholderPage title="Issues" /> },
                     { path: "reports", element: <PlaceholderPage title="Reports" /> },
-                    { path: "settings", element: <PlaceholderPage title="Settings" /> },
+                    { path: "settings", element: <SettingsPage /> },
                     {
                         element: <PermissionRoute permission={SYSTEM_PERMISSIONS.ADMIN_ACCESS} />,
                         children: [

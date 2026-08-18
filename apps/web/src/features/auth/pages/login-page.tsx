@@ -105,7 +105,12 @@ export function LoginPage() {
                     }
                 />
 
-                <Button type="submit" className="w-full" loading={isLoading} loadingText="Signing in...">
+                <Button
+                    type="submit"
+                    className="w-full"
+                    loading={isLoading}
+                    loadingText="Signing in..."
+                >
                     Sign in
                 </Button>
             </form>

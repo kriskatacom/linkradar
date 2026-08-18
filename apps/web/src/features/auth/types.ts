@@ -6,6 +6,7 @@ export type AuthUser = {
     name: string;
     email: string;
     emailVerified: boolean;
+    theme: "light" | "dark" | "system";
     roles: UserRole[];
     permissions: PermissionName[];
 };

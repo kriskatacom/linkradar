@@ -17,4 +17,5 @@ export const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (app, opt
     app.post("/refresh", options.controller.refresh);
     app.post("/logout", options.controller.logout);
     app.get("/me", { preHandler: authenticate }, options.controller.me);
+    app.patch("/me", { preHandler: authenticate }, options.controller.updateTheme);
 };

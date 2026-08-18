@@ -1,6 +1,7 @@
 import { configureStore } from "@reduxjs/toolkit";
 
 import { authReducer } from "@/features/auth/authSlice";
+import { themeReducer } from "@/features/settings/themeSlice";
 import { workspaceReducer } from "@/features/workspaces/workspaceSlice";
 import { api } from "@/services/api";
 import "@/features/admin/api/adminApi";
@@ -10,6 +11,7 @@ import "@/features/workspaces/api/workspaceApi";
 export const store = configureStore({
     reducer: {
         auth: authReducer,
+        theme: themeReducer,
         workspace: workspaceReducer,
         [api.reducerPath]: api.reducer,
     },

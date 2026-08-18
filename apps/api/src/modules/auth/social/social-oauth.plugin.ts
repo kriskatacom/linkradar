@@ -2,6 +2,7 @@ import oauthPlugin from "@fastify/oauth2";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
 import { getApiEnv, type OAuthClientConfig } from "../../../config/env.js";
+import { refreshCookieOptions } from "../../../lib/auth-cookies.js";
 import { socialProviderNotConfiguredError } from "../auth.errors.js";
 import type { SocialOAuthAdapter, SocialProvider } from "./social-auth.types.js";
 
@@ -43,13 +44,7 @@ type OAuth2Client = {
 };
 
 function cookieOptions() {
-    const env = getApiEnv();
-    return {
-        secure: env.cookieSecure,
-        sameSite: env.cookieSameSite,
-        path: env.authCookiePath,
-        httpOnly: true,
-    };
+    return refreshCookieOptions();
 }
 
 export async function registerConfiguredOAuthProviders(app: FastifyInstance): Promise<void> {

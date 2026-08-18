@@ -6,6 +6,7 @@ import type {
     PermissionName,
     PermissionRow,
     RoleRow,
+    ThemePreference,
     UserRole,
     UserRow,
 } from "../src/modules/auth/auth.types.js";
@@ -36,6 +37,7 @@ function withDefaults(data: NewUserRow): UserRow {
         passwordHash: data.passwordHash ?? null,
         emailVerifiedAt: data.emailVerifiedAt ?? null,
         isActive: data.isActive ?? true,
+        theme: data.theme ?? "system",
         deletedAt: data.deletedAt ?? null,
         createdAt: data.createdAt ?? now,
         updatedAt: data.updatedAt ?? now,
@@ -164,7 +166,9 @@ export class MemoryAuthRepository implements AuthRepository, SocialAuthRepositor
         const names: PermissionName[] = [];
 
         for (const permissionId of permissionIds) {
-            const permission = [...this.permissions.values()].find((item) => item.id === permissionId);
+            const permission = [...this.permissions.values()].find(
+                (item) => item.id === permissionId,
+            );
             if (permission) {
                 names.push(permission.name);
             }
@@ -334,6 +338,17 @@ export class MemoryAuthRepository implements AuthRepository, SocialAuthRepositor
         }
 
         return deleted;
+    }
+
+    async updateUserTheme(userId: string, theme: ThemePreference): Promise<UserRow> {
+        const user = this.users.get(userId);
+        if (!user) {
+            throw new Error("User not found.");
+        }
+
+        const updated = { ...user, theme, updatedAt: new Date() };
+        this.users.set(userId, updated);
+        return updated;
     }
 
     async findByProviderIdentity(

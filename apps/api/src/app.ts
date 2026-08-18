@@ -4,7 +4,7 @@ import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 
-import { getApiEnv } from "./config/env.js";
+import { getApiEnv, isAllowedFrontendOrigin } from "./config/env.js";
 import { authPlugin, type AuthPluginOptions } from "./plugins/auth.plugin.js";
 import { registerErrorHandler } from "./plugins/error-handler.js";
 import "./types/fastify.js";
@@ -25,7 +25,14 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
 
     await app.register(helmet);
     await app.register(cors, {
-        origin: env.frontendUrl,
+        origin: (origin, callback) => {
+            if (!origin) {
+                callback(null, true);
+                return;
+            }
+
+            callback(null, isAllowedFrontendOrigin(origin, env.frontendUrl));
+        },
         credentials: true,
         methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allowedHeaders: ["Content-Type", "Authorization"],

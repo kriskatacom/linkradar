@@ -39,6 +39,7 @@ function createStore(permissions: string[], workspaceId: string | null = "ws-1")
                 name: "Kristian",
                 email: "user@example.com",
                 emailVerified: true,
+                theme: "system",
                 roles: ["user"],
                 permissions,
             },
