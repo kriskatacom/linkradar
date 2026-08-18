@@ -64,18 +64,20 @@ export class MemoryAuthRepository implements AuthRepository, SocialAuthRepositor
     async ensureSystemRoles(): Promise<void> {
         if (!this.roles.has("admin")) {
             this.roles.set("admin", {
-                id: "role-admin",
+                id: "11111111-1111-4111-8111-111111111111",
                 name: "admin",
                 label: "Administrator",
+                isSystem: true,
                 createdAt: new Date(),
                 updatedAt: new Date(),
             });
         }
         if (!this.roles.has("user")) {
             this.roles.set("user", {
-                id: "role-user",
+                id: "22222222-2222-4222-8222-222222222222",
                 name: "user",
                 label: "User",
+                isSystem: true,
                 createdAt: new Date(),
                 updatedAt: new Date(),
             });

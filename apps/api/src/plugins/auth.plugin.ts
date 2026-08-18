@@ -25,12 +25,15 @@ import type {
     SocialOAuthAdapter,
     SocialProfileFetcher,
 } from "../modules/auth/social/social-auth.types.js";
+import { adminPlugin } from "../modules/admin/admin.plugin.js";
+import type { AdminRepository } from "../modules/admin/admin.repository.js";
 
 export type AuthPluginOptions = {
     repository?: AuthRepository;
     socialRepository?: SocialAuthRepository;
     socialProfileFetcher?: SocialProfileFetcher;
     oauthAdapter?: SocialOAuthAdapter;
+    adminRepository?: AdminRepository;
 };
 
 export const authPlugin: FastifyPluginAsync<AuthPluginOptions> = async (app, options) => {
@@ -92,6 +95,11 @@ export const authPlugin: FastifyPluginAsync<AuthPluginOptions> = async (app, opt
                     message: "Admin access granted.",
                 },
             }));
+
+            await adminApp.register(adminPlugin, {
+                repository: options.adminRepository,
+                authService: service,
+            });
         },
         { prefix: "/api/admin" },
     );

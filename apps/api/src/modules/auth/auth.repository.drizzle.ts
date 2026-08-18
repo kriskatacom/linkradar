@@ -54,9 +54,9 @@ function getAffectedRows(result: unknown): number {
     return 0;
 }
 
-const SYSTEM_ROLE_DEFINITIONS: Array<{ name: UserRole; label: string }> = [
-    { name: "admin", label: "Administrator" },
-    { name: "user", label: "User" },
+const SYSTEM_ROLE_DEFINITIONS: Array<{ name: UserRole; label: string; isSystem: boolean }> = [
+    { name: "admin", label: "Administrator", isSystem: true },
+    { name: "user", label: "User", isSystem: true },
 ];
 const INITIAL_ADMIN_MARKER_KEY = "initial_admin_user_id";
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -381,7 +381,10 @@ export class DrizzleAuthRepository implements AuthRepository {
     private async ensureSystemRolesTx(tx: Tx) {
         for (const role of SYSTEM_ROLE_DEFINITIONS) {
             await tx.execute(
-                sql`INSERT IGNORE INTO roles (id, name, label) VALUES (${randomUUID()}, ${role.name}, ${role.label})`,
+                sql`INSERT IGNORE INTO roles (id, name, label, is_system) VALUES (${randomUUID()}, ${role.name}, ${role.label}, ${role.isSystem})`,
+            );
+            await tx.execute(
+                sql`UPDATE roles SET is_system = ${role.isSystem}, label = ${role.label} WHERE name = ${role.name}`,
             );
         }
     }
