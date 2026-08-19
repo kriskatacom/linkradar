@@ -7,7 +7,7 @@ services:
             MYSQL_ROOT_PASSWORD: root
             MYSQL_DATABASE: linkradar
         ports:
-            - "3306:3306"
+            - "127.0.0.1:3306:3306"
         volumes:
             - linkradar_mysql_data:/var/lib/mysql
 
@@ -16,8 +16,8 @@ services:
         container_name: linkradar-mailpit
         restart: unless-stopped
         ports:
-            - "1025:1025"
-            - "8025:8025"
+            - "127.0.0.1:1025:1025"
+            - "127.0.0.1:8025:8025"
 
 volumes:
     linkradar_mysql_data:

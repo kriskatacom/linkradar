@@ -40,6 +40,11 @@ export type ApiEnv = {
     mailFromAddress: string;
     appUrl: string;
     apiUrl: string;
+    lanEnabled: boolean;
+    lanHost: string;
+    lanFrontendUrl: string;
+    lanApiUrl: string;
+    allowedFrontendOrigins: string[];
     oauth: Record<SocialProvider, OAuthClientConfig | null>;
 };
 
@@ -137,12 +142,45 @@ export function isHttpsUrl(value: string): boolean {
     }
 }
 
-export function isAllowedFrontendOrigin(origin: string, frontendUrl: string): boolean {
+export function normalizeOrigin(value: string): string | null {
     try {
-        return new URL(origin).origin === new URL(frontendUrl).origin;
+        return new URL(value).origin;
     } catch {
-        return origin.replace(/\/$/, "") === frontendUrl.replace(/\/$/, "");
+        return null;
     }
+}
+
+export function getAllowedFrontendOrigins(input: {
+    frontendUrl: string;
+    lanHost?: string;
+    lanFrontendUrl?: string;
+}): string[] {
+    const origins = new Set<string>();
+    const frontendOrigin =
+        normalizeOrigin(input.frontendUrl) ?? input.frontendUrl.replace(/\/$/, "");
+    origins.add(frontendOrigin);
+
+    const lanFrontendUrl = input.lanFrontendUrl?.trim();
+    if (lanFrontendUrl) {
+        origins.add(normalizeOrigin(lanFrontendUrl) ?? lanFrontendUrl.replace(/\/$/, ""));
+    }
+
+    const lanHost = input.lanHost?.trim();
+    if (lanHost) {
+        origins.add(`https://${lanHost}`);
+    }
+
+    return [...origins];
+}
+
+export function isAllowedFrontendOrigin(origin: string, allowed: string | string[]): boolean {
+    const allowedList = Array.isArray(allowed) ? allowed : [allowed];
+    const normalizedOrigin = normalizeOrigin(origin) ?? origin.replace(/\/$/, "");
+
+    return allowedList.some((candidate) => {
+        const normalizedCandidate = normalizeOrigin(candidate) ?? candidate.replace(/\/$/, "");
+        return normalizedCandidate === normalizedOrigin;
+    });
 }
 
 function optionalOAuthConfig(prefix: string): OAuthClientConfig | null {
@@ -201,6 +239,15 @@ export function getApiEnv(): ApiEnv {
         "AUTH_COOKIE_PARTITIONED",
         cookieSameSite === "none" && cookieSecure,
     );
+    const lanEnabled = optionalBoolean("LAN_ENABLED", false);
+    const lanHost = optionalEnv("LAN_HOST", "");
+    const lanFrontendUrl = optionalEnv("LAN_FRONTEND_URL", "");
+    const lanApiUrl = optionalEnv("LAN_API_URL", "");
+    const allowedFrontendOrigins = getAllowedFrontendOrigins({
+        frontendUrl,
+        lanHost: lanEnabled ? lanHost : "",
+        lanFrontendUrl,
+    });
 
     cached = {
         nodeEnv,
@@ -236,7 +283,12 @@ export function getApiEnv(): ApiEnv {
         mailFromName: optionalEnv("MAIL_FROM_NAME", "LinkRadar"),
         mailFromAddress: optionalEnv("MAIL_FROM_ADDRESS", "noreply@linkradar.local"),
         appUrl: optionalEnv("APP_URL", frontendUrl),
-        apiUrl: optionalEnv("API_URL", `http://${optionalEnv("API_HOST", "127.0.0.1")}:${optionalEnv("API_PORT", "3000")}`),
+        apiUrl: optionalEnv("API_URL", `http://127.0.0.1:${optionalEnv("API_PORT", "3000")}`),
+        lanEnabled,
+        lanHost,
+        lanFrontendUrl,
+        lanApiUrl,
+        allowedFrontendOrigins,
         oauth: {
             google: optionalOAuthConfig("GOOGLE"),
             facebook: optionalOAuthConfig("FACEBOOK"),

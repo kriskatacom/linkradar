@@ -25,7 +25,8 @@ export function refreshCookieOptions(overrides: RefreshCookieOptions = {}): Refr
         secure: env.cookieSecure,
         sameSite: env.cookieSameSite,
         path: env.authCookiePath,
-        ...(env.cookieDomain ? { domain: env.cookieDomain } : {}),
+        // Host-only unless AUTH_COOKIE_DOMAIN is set. Do not set Domain to
+        // website.local / api.local — that breaks LAN IP access.
         ...(env.cookiePartitioned ? { partitioned: true } : {}),
         ...overrides,
     };

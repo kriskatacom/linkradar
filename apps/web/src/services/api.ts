@@ -7,6 +7,7 @@ import {
     type FetchBaseQueryError,
 } from "@reduxjs/toolkit/query/react";
 
+import { resolveApiBaseUrl } from "@/lib/api-base-url";
 import { authSucceeded, clearAuth } from "@/features/auth/authSlice";
 import type { SuccessResponse } from "@/features/auth/types";
 import type { AuthResponseData } from "@/features/auth/types";
@@ -15,7 +16,7 @@ import type { RootState } from "@/app/store";
 const mutex = new Mutex();
 
 const rawBaseQuery = fetchBaseQuery({
-    baseUrl: import.meta.env.VITE_API_URL,
+    baseUrl: resolveApiBaseUrl(import.meta.env.VITE_API_URL),
     credentials: "include",
     prepareHeaders: (headers, api) => {
         const state = api.getState() as RootState;

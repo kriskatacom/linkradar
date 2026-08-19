@@ -16,7 +16,8 @@
         "format:check": "prettier --check .",
         "db:generate": "npm run db:generate --workspace=@link-radar/database",
         "db:migrate": "npm run db:migrate --workspace=@link-radar/database",
-        "db:studio": "npm run db:studio --workspace=@link-radar/database"
+        "db:studio": "npm run db:studio --workspace=@link-radar/database",
+        "dev:lan": "node scripts/dev-lan.mjs"
     },
     "keywords": [],
     "author": "",

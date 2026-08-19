@@ -31,5 +31,9 @@ Thumbs.db
 *.temp
 .cache/
 
+# Local TLS certificates (generate with mkcert; see docs/lan-development.md)
+.certs/*.pem
+!.certs/.gitkeep
+
 # TypeScript
 *.tsbuildinfo

@@ -31,7 +31,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
                 return;
             }
 
-            callback(null, isAllowedFrontendOrigin(origin, env.frontendUrl));
+            callback(null, isAllowedFrontendOrigin(origin, env.allowedFrontendOrigins));
         },
         credentials: true,
         methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
