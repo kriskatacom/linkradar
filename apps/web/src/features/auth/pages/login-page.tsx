@@ -105,6 +105,15 @@ export function LoginPage() {
                     }
                 />
 
+                <div className="flex justify-end">
+                    <Link
+                        to="/forgot-password"
+                        className="text-sm font-medium text-slate-900 underline"
+                    >
+                        Forgot password?
+                    </Link>
+                </div>
+
                 <Button
                     type="submit"
                     className="w-full"

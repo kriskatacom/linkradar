@@ -1,10 +1,21 @@
-import type { authSessions, permissions, roles, users } from "@link-radar/database";
+import type {
+    authSessions,
+    emailVerificationTokens,
+    passwordResetTokens,
+    permissions,
+    roles,
+    users,
+} from "@link-radar/database";
 import type { SystemPermission } from "./rbac/system-permissions.js";
 
 export type UserRow = typeof users.$inferSelect;
 export type NewUserRow = typeof users.$inferInsert;
 export type AuthSessionRow = typeof authSessions.$inferSelect;
 export type NewAuthSessionRow = typeof authSessions.$inferInsert;
+export type EmailVerificationTokenRow = typeof emailVerificationTokens.$inferSelect;
+export type NewEmailVerificationTokenRow = typeof emailVerificationTokens.$inferInsert;
+export type PasswordResetTokenRow = typeof passwordResetTokens.$inferSelect;
+export type NewPasswordResetTokenRow = typeof passwordResetTokens.$inferInsert;
 export type RoleRow = typeof roles.$inferSelect;
 export type PermissionRow = typeof permissions.$inferSelect;
 

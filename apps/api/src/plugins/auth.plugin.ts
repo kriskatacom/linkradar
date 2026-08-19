@@ -13,6 +13,8 @@ import type { AuthRepository } from "../modules/auth/auth.repository.js";
 import { SYSTEM_PERMISSIONS } from "../modules/auth/rbac/system-permissions.js";
 import { authRoutes } from "../modules/auth/auth.routes.js";
 import { AuthService } from "../modules/auth/auth.service.js";
+import { defaultMailer } from "../modules/mail/mail.service.js";
+import type { Mailer } from "../modules/mail/mail.types.js";
 import { HttpSocialProfileFetcher } from "../modules/auth/social/providers/index.js";
 import type { SocialAuthRepository } from "../modules/auth/social/social-auth.repository.js";
 import { socialAuthRoutes } from "../modules/auth/social/social-auth.routes.js";
@@ -37,6 +39,7 @@ export type AuthPluginOptions = {
     oauthAdapter?: SocialOAuthAdapter;
     adminRepository?: AdminRepository;
     workspaceRepository?: WorkspaceRepository;
+    mailer?: Mailer;
 };
 
 export const authPlugin: FastifyPluginAsync<AuthPluginOptions> = async (app, options) => {
@@ -51,7 +54,7 @@ export const authPlugin: FastifyPluginAsync<AuthPluginOptions> = async (app, opt
             : new (
                   await import("../modules/auth/social/social-auth.repository.drizzle.js")
               ).DrizzleSocialAuthRepository());
-    const service = new AuthService(repository);
+    const service = new AuthService(repository, options.mailer ?? defaultMailer());
     const socialAuthService = new SocialAuthService(repository, socialRepository, service);
     const controller = new AuthController(service);
     const profileFetcher = options.socialProfileFetcher ?? new HttpSocialProfileFetcher();
@@ -109,10 +112,14 @@ export const authPlugin: FastifyPluginAsync<AuthPluginOptions> = async (app, opt
 
     await app.register(
         async (permissionApp) => {
-            permissionApp.get("/sites-view", { preHandler: [authenticate, requireSitesView] }, async () => ({
-                success: true,
-                data: { message: "Sites view access granted." },
-            }));
+            permissionApp.get(
+                "/sites-view",
+                { preHandler: [authenticate, requireSitesView] },
+                async () => ({
+                    success: true,
+                    data: { message: "Sites view access granted." },
+                }),
+            );
 
             permissionApp.get(
                 "/users-manage-any",

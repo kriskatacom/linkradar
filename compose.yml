@@ -11,5 +11,13 @@ services:
         volumes:
             - linkradar_mysql_data:/var/lib/mysql
 
+    mailpit:
+        image: axllent/mailpit:latest
+        container_name: linkradar-mailpit
+        restart: unless-stopped
+        ports:
+            - "1025:1025"
+            - "8025:8025"
+
 volumes:
     linkradar_mysql_data:

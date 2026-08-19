@@ -17,9 +17,11 @@ import {
 import { SettingsPage } from "@/features/settings/pages/settings-page";
 
 const updateTheme = vi.fn();
+const requestVerification = vi.fn();
 
 vi.mock("@/features/auth/api/authApi", () => ({
     useUpdateThemeMutation: () => [updateTheme, { isLoading: false }],
+    useRequestEmailVerificationMutation: () => [requestVerification, { isLoading: false }],
 }));
 
 type MatchMediaMock = {

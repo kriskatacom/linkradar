@@ -31,6 +31,15 @@ export type ApiEnv = {
     authCookieName: string;
     authCookiePath: string;
     rateLimitMax: number;
+    smtpHost: string;
+    smtpPort: number;
+    smtpSecure: boolean;
+    smtpUser: string;
+    smtpPassword: string;
+    mailFromName: string;
+    mailFromAddress: string;
+    appUrl: string;
+    apiUrl: string;
     oauth: Record<SocialProvider, OAuthClientConfig | null>;
 };
 
@@ -219,6 +228,15 @@ export function getApiEnv(): ApiEnv {
             "AUTH_RATE_LIMIT_MAX",
             optionalEnv("AUTH_RATE_LIMIT_MAX", isProduction ? "20" : "200"),
         ),
+        smtpHost: optionalEnv("SMTP_HOST", "127.0.0.1"),
+        smtpPort: parsePositiveInteger("SMTP_PORT", optionalEnv("SMTP_PORT", "1025")),
+        smtpSecure: optionalBoolean("SMTP_SECURE", false),
+        smtpUser: optionalEnv("SMTP_USER", ""),
+        smtpPassword: optionalEnv("SMTP_PASSWORD", ""),
+        mailFromName: optionalEnv("MAIL_FROM_NAME", "LinkRadar"),
+        mailFromAddress: optionalEnv("MAIL_FROM_ADDRESS", "noreply@linkradar.local"),
+        appUrl: optionalEnv("APP_URL", frontendUrl),
+        apiUrl: optionalEnv("API_URL", `http://${optionalEnv("API_HOST", "127.0.0.1")}:${optionalEnv("API_PORT", "3000")}`),
         oauth: {
             google: optionalOAuthConfig("GOOGLE"),
             facebook: optionalOAuthConfig("FACEBOOK"),

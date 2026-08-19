@@ -1,6 +1,6 @@
 import type { FastifyRequest } from "fastify";
 
-import { forbiddenError, unauthenticatedError } from "../modules/auth/auth.errors.js";
+import { AuthError, forbiddenError, unauthenticatedError } from "../modules/auth/auth.errors.js";
 import type { AuthService } from "../modules/auth/auth.service.js";
 import type { PermissionName, UserRole } from "../modules/auth/auth.types.js";
 
@@ -20,6 +20,22 @@ export function createAuthMiddleware(service: AuthService) {
 
         const { user, sessionId } = await service.authenticateAccessToken(accessToken);
         request.auth = { user, sessionId };
+    };
+}
+
+export function createOptionalAuthMiddleware(service: AuthService) {
+    const authenticate = createAuthMiddleware(service);
+
+    return async function optionalAuthenticate(request: FastifyRequest): Promise<void> {
+        try {
+            await authenticate(request);
+        } catch (error) {
+            if (error instanceof AuthError && error.code === "UNAUTHENTICATED") {
+                return;
+            }
+
+            throw error;
+        }
     };
 }
 

@@ -1,6 +1,8 @@
 import {
     authSessions,
     db,
+    emailVerificationTokens,
+    passwordResetTokens,
     permissions,
     rolePermissions,
     roles,
@@ -8,7 +10,7 @@ import {
     userRoles,
     users,
 } from "@link-radar/database";
-import { and, eq, lte, sql } from "drizzle-orm";
+import { and, eq, isNull, lte, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 
 import { emailAlreadyExistsError } from "./auth.errors.js";
@@ -16,8 +18,12 @@ import type { AuthRepository } from "./auth.repository.js";
 import { insertPersonalWorkspaceTx } from "../workspaces/workspace.provision.js";
 import type {
     AuthSessionRow,
+    EmailVerificationTokenRow,
     NewAuthSessionRow,
+    NewEmailVerificationTokenRow,
+    NewPasswordResetTokenRow,
     NewUserRow,
+    PasswordResetTokenRow,
     PermissionName,
     PermissionRow,
     RoleRow,
@@ -383,6 +389,88 @@ export class DrizzleAuthRepository implements AuthRepository {
 
     async updateUserTheme(userId: string, theme: ThemePreference): Promise<UserRow> {
         await db.update(users).set({ theme }).where(eq(users.id, userId));
+        return this.requireUser(userId);
+    }
+
+    async updateUserPassword(userId: string, passwordHash: string): Promise<UserRow> {
+        await db.update(users).set({ passwordHash }).where(eq(users.id, userId));
+        return this.requireUser(userId);
+    }
+
+    async markEmailVerified(userId: string, verifiedAt = new Date()): Promise<UserRow> {
+        await db.update(users).set({ emailVerifiedAt: verifiedAt }).where(eq(users.id, userId));
+        return this.requireUser(userId);
+    }
+
+    async createEmailVerificationToken(
+        data: NewEmailVerificationTokenRow,
+    ): Promise<EmailVerificationTokenRow> {
+        await db.insert(emailVerificationTokens).values(data);
+        const created = await this.findEmailVerificationTokenByHash(data.tokenHash);
+        if (!created) {
+            throw new Error("Failed to load created verification token.");
+        }
+        return created;
+    }
+
+    async findEmailVerificationTokenByHash(
+        hash: string,
+    ): Promise<EmailVerificationTokenRow | null> {
+        const rows = await db
+            .select()
+            .from(emailVerificationTokens)
+            .where(eq(emailVerificationTokens.tokenHash, hash))
+            .limit(1);
+        return rows[0] ?? null;
+    }
+
+    async markEmailVerificationTokenUsed(id: string, usedAt: Date): Promise<void> {
+        await db
+            .update(emailVerificationTokens)
+            .set({ usedAt })
+            .where(eq(emailVerificationTokens.id, id));
+    }
+
+    async deleteUnusedEmailVerificationTokensForUser(userId: string): Promise<void> {
+        await db
+            .delete(emailVerificationTokens)
+            .where(
+                and(
+                    eq(emailVerificationTokens.userId, userId),
+                    isNull(emailVerificationTokens.usedAt),
+                ),
+            );
+    }
+
+    async createPasswordResetToken(data: NewPasswordResetTokenRow): Promise<PasswordResetTokenRow> {
+        await db.insert(passwordResetTokens).values(data);
+        const created = await this.findPasswordResetTokenByHash(data.tokenHash);
+        if (!created) {
+            throw new Error("Failed to load created password reset token.");
+        }
+        return created;
+    }
+
+    async findPasswordResetTokenByHash(hash: string): Promise<PasswordResetTokenRow | null> {
+        const rows = await db
+            .select()
+            .from(passwordResetTokens)
+            .where(eq(passwordResetTokens.tokenHash, hash))
+            .limit(1);
+        return rows[0] ?? null;
+    }
+
+    async markPasswordResetTokenUsed(id: string, usedAt: Date): Promise<void> {
+        await db.update(passwordResetTokens).set({ usedAt }).where(eq(passwordResetTokens.id, id));
+    }
+
+    async deleteUnusedPasswordResetTokensForUser(userId: string): Promise<void> {
+        await db
+            .delete(passwordResetTokens)
+            .where(and(eq(passwordResetTokens.userId, userId), isNull(passwordResetTokens.usedAt)));
+    }
+
+    private async requireUser(userId: string): Promise<UserRow> {
         const updated = await this.findUserById(userId);
         if (!updated) {
             throw new Error("Failed to load updated user.");

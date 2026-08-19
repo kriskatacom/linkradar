@@ -8,8 +8,20 @@ import {
     setRefreshCookie,
 } from "../../lib/auth-cookies.js";
 import { AuthError, unauthenticatedError, validationError } from "./auth.errors.js";
-import { loginBodySchema, registerBodySchema, updateThemeBodySchema } from "./auth.schemas.js";
-import type { AuthService } from "./auth.service.js";
+import {
+    EMAIL_VERIFICATION_REQUEST_MESSAGE,
+    FORGOT_PASSWORD_MESSAGE,
+    type AuthService,
+} from "./auth.service.js";
+import {
+    emailVerificationRequestBodySchema,
+    emailVerificationVerifyBodySchema,
+    forgotPasswordBodySchema,
+    loginBodySchema,
+    registerBodySchema,
+    resetPasswordBodySchema,
+    updateThemeBodySchema,
+} from "./auth.schemas.js";
 
 function fieldsFromZodError(error: ZodError): Record<string, string[]> {
     const fields: Record<string, string[]> = {};
@@ -132,6 +144,79 @@ export class AuthController {
             success: true,
             data: {
                 user,
+            },
+        });
+    };
+
+    requestEmailVerification = async (request: FastifyRequest, reply: FastifyReply) => {
+        const parsed = emailVerificationRequestBodySchema.safeParse(request.body ?? {});
+
+        if (!parsed.success) {
+            throw validationError(fieldsFromZodError(parsed.error));
+        }
+
+        if (!request.auth && !parsed.data.email) {
+            throw validationError({ email: ["Email is required."] });
+        }
+
+        await this.service.requestEmailVerification({
+            userId: request.auth?.user.id,
+            email: parsed.data.email,
+        });
+
+        return reply.status(200).send({
+            success: true,
+            data: {
+                message: EMAIL_VERIFICATION_REQUEST_MESSAGE,
+            },
+        });
+    };
+
+    verifyEmail = async (request: FastifyRequest, reply: FastifyReply) => {
+        const parsed = emailVerificationVerifyBodySchema.safeParse(request.body);
+
+        if (!parsed.success) {
+            throw validationError(fieldsFromZodError(parsed.error));
+        }
+
+        const user = await this.service.verifyEmail(parsed.data.token);
+
+        return reply.status(200).send({
+            success: true,
+            data: { user },
+        });
+    };
+
+    forgotPassword = async (request: FastifyRequest, reply: FastifyReply) => {
+        const parsed = forgotPasswordBodySchema.safeParse(request.body);
+
+        if (!parsed.success) {
+            throw validationError(fieldsFromZodError(parsed.error));
+        }
+
+        await this.service.forgotPassword(parsed.data.email);
+
+        return reply.status(200).send({
+            success: true,
+            data: {
+                message: FORGOT_PASSWORD_MESSAGE,
+            },
+        });
+    };
+
+    resetPassword = async (request: FastifyRequest, reply: FastifyReply) => {
+        const parsed = resetPasswordBodySchema.safeParse(request.body);
+
+        if (!parsed.success) {
+            throw validationError(fieldsFromZodError(parsed.error));
+        }
+
+        await this.service.resetPassword(parsed.data.token, parsed.data.password);
+
+        return reply.status(200).send({
+            success: true,
+            data: {
+                message: "Your password has been reset. You can sign in with your new password.",
             },
         });
     };

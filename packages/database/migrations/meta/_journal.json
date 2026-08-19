@@ -43,6 +43,13 @@
       "when": 1787093553600,
       "tag": "0005_colossal_cable",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1787095220457,
+      "tag": "0006_lame_blue_marvel",
+      "breakpoints": true
     }
   ]
 }

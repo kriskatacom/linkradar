@@ -29,6 +29,7 @@ describe("auth routes", () => {
         expect(body.success).toBe(true);
         expect(body.data.user.email).toBe("user@example.com");
         expect(body.data.user.theme).toBe("system");
+        expect(body.data.user.emailVerified).toBe(false);
         expect(body.data.accessToken).toEqual(expect.any(String));
         expect(body.data.user.roles).toEqual(["admin"]);
         expect(body.data.user.permissions).toContain(SYSTEM_PERMISSIONS.ADMIN_ACCESS);

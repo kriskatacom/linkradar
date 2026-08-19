@@ -1,6 +1,7 @@
 import { relations } from "drizzle-orm";
 
 import { authSessions } from "./auth-sessions.js";
+import { emailVerificationTokens, passwordResetTokens } from "./email-tokens.js";
 import { permissions } from "./permissions.js";
 import { rolePermissions } from "./role-permissions.js";
 import { roles } from "./roles.js";
@@ -13,6 +14,7 @@ import { workspaceMembers } from "./workspace-members.js";
 import { workspaces } from "./workspaces.js";
 
 export { authSessions } from "./auth-sessions.js";
+export { emailVerificationTokens, passwordResetTokens } from "./email-tokens.js";
 export { permissions } from "./permissions.js";
 export { rolePermissions } from "./role-permissions.js";
 export { roles } from "./roles.js";
@@ -26,6 +28,8 @@ export { workspaces } from "./workspaces.js";
 
 export const usersRelations = relations(users, ({ many }) => ({
     authSessions: many(authSessions),
+    emailVerificationTokens: many(emailVerificationTokens),
+    passwordResetTokens: many(passwordResetTokens),
     socialAccounts: many(userSocialAccounts),
     userRoles: many(userRoles),
     ownedWorkspaces: many(workspaces),
@@ -44,6 +48,20 @@ export const permissionsRelations = relations(permissions, ({ many }) => ({
 export const authSessionsRelations = relations(authSessions, ({ one }) => ({
     user: one(users, {
         fields: [authSessions.userId],
+        references: [users.id],
+    }),
+}));
+
+export const emailVerificationTokensRelations = relations(emailVerificationTokens, ({ one }) => ({
+    user: one(users, {
+        fields: [emailVerificationTokens.userId],
+        references: [users.id],
+    }),
+}));
+
+export const passwordResetTokensRelations = relations(passwordResetTokens, ({ one }) => ({
+    user: one(users, {
+        fields: [passwordResetTokens.userId],
         references: [users.id],
     }),
 }));

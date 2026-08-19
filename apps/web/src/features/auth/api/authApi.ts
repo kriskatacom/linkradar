@@ -86,6 +86,51 @@ export const authApi = api.injectEndpoints({
                 }
             },
         }),
+        requestEmailVerification: builder.mutation<
+            SuccessResponse<{ message: string }>,
+            { email?: string } | void
+        >({
+            query: (body) => ({
+                url: "/api/auth/email/verification/request",
+                method: "POST",
+                body: body ?? {},
+            }),
+        }),
+        verifyEmail: builder.mutation<MeResponse, { token: string }>({
+            query: (body) => ({
+                url: "/api/auth/email/verification/verify",
+                method: "POST",
+                body,
+            }),
+            async onQueryStarted(_arg, { dispatch, getState, queryFulfilled }) {
+                const { data } = await queryFulfilled;
+                const previous = (
+                    getState() as unknown as {
+                        auth: { user: AuthUser | null; accessToken: string | null };
+                    }
+                ).auth;
+                if (previous.user && previous.accessToken) {
+                    dispatch(setUser(data.data.user));
+                }
+            },
+        }),
+        forgotPassword: builder.mutation<SuccessResponse<{ message: string }>, { email: string }>({
+            query: (body) => ({
+                url: "/api/auth/forgot-password",
+                method: "POST",
+                body,
+            }),
+        }),
+        resetPassword: builder.mutation<
+            SuccessResponse<{ message: string }>,
+            { token: string; password: string }
+        >({
+            query: (body) => ({
+                url: "/api/auth/reset-password",
+                method: "POST",
+                body,
+            }),
+        }),
     }),
 });
 
@@ -97,4 +142,8 @@ export const {
     useMeQuery,
     useLazyMeQuery,
     useUpdateThemeMutation,
+    useRequestEmailVerificationMutation,
+    useVerifyEmailMutation,
+    useForgotPasswordMutation,
+    useResetPasswordMutation,
 } = authApi;

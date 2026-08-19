@@ -76,3 +76,15 @@ export function socialProviderNotConfiguredError(): AuthError {
 export function forbiddenError(): AuthError {
     return new AuthError("FORBIDDEN", "You do not have permission to perform this action.", 403);
 }
+
+export function invalidEmailTokenError(): AuthError {
+    return new AuthError("INVALID_TOKEN", "This link is invalid.", 400);
+}
+
+export function expiredEmailTokenError(): AuthError {
+    return new AuthError("TOKEN_EXPIRED", "This link has expired.", 400);
+}
+
+export function usedEmailTokenError(): AuthError {
+    return new AuthError("TOKEN_ALREADY_USED", "This link has already been used.", 400);
+}

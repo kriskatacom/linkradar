@@ -1,8 +1,12 @@
 import type { AuthRepository } from "../src/modules/auth/auth.repository.js";
 import type {
     AuthSessionRow,
+    EmailVerificationTokenRow,
     NewAuthSessionRow,
+    NewEmailVerificationTokenRow,
+    NewPasswordResetTokenRow,
     NewUserRow,
+    PasswordResetTokenRow,
     PermissionName,
     PermissionRow,
     RoleRow,
@@ -60,6 +64,8 @@ function withSessionDefaults(data: NewAuthSessionRow): AuthSessionRow {
 export class MemoryAuthRepository implements AuthRepository, SocialAuthRepository {
     readonly users = new Map<string, UserRow>();
     readonly sessions = new Map<string, AuthSessionRow>();
+    readonly emailVerificationTokens = new Map<string, EmailVerificationTokenRow>();
+    readonly passwordResetTokens = new Map<string, PasswordResetTokenRow>();
     readonly socialAccounts = new Map<string, UserSocialAccountRow>();
     readonly roles = new Map<string, RoleRow>();
     readonly permissions = new Map<string, PermissionRow>();
@@ -341,12 +347,95 @@ export class MemoryAuthRepository implements AuthRepository, SocialAuthRepositor
     }
 
     async updateUserTheme(userId: string, theme: ThemePreference): Promise<UserRow> {
+        return this.patchUser(userId, { theme });
+    }
+
+    async updateUserPassword(userId: string, passwordHash: string): Promise<UserRow> {
+        return this.patchUser(userId, { passwordHash });
+    }
+
+    async markEmailVerified(userId: string, verifiedAt = new Date()): Promise<UserRow> {
+        return this.patchUser(userId, { emailVerifiedAt: verifiedAt });
+    }
+
+    async createEmailVerificationToken(
+        data: NewEmailVerificationTokenRow,
+    ): Promise<EmailVerificationTokenRow> {
+        const token: EmailVerificationTokenRow = {
+            id: data.id,
+            userId: data.userId,
+            tokenHash: data.tokenHash,
+            expiresAt: data.expiresAt,
+            usedAt: data.usedAt ?? null,
+            createdAt: data.createdAt ?? new Date(),
+        };
+        this.emailVerificationTokens.set(token.id, token);
+        return token;
+    }
+
+    async findEmailVerificationTokenByHash(hash: string): Promise<EmailVerificationTokenRow | null> {
+        return (
+            [...this.emailVerificationTokens.values()].find((token) => token.tokenHash === hash) ??
+            null
+        );
+    }
+
+    async markEmailVerificationTokenUsed(id: string, usedAt: Date): Promise<void> {
+        const token = this.emailVerificationTokens.get(id);
+        if (token) {
+            this.emailVerificationTokens.set(id, { ...token, usedAt });
+        }
+    }
+
+    async deleteUnusedEmailVerificationTokensForUser(userId: string): Promise<void> {
+        for (const [id, token] of this.emailVerificationTokens) {
+            if (token.userId === userId && token.usedAt === null) {
+                this.emailVerificationTokens.delete(id);
+            }
+        }
+    }
+
+    async createPasswordResetToken(data: NewPasswordResetTokenRow): Promise<PasswordResetTokenRow> {
+        const token: PasswordResetTokenRow = {
+            id: data.id,
+            userId: data.userId,
+            tokenHash: data.tokenHash,
+            expiresAt: data.expiresAt,
+            usedAt: data.usedAt ?? null,
+            createdAt: data.createdAt ?? new Date(),
+        };
+        this.passwordResetTokens.set(token.id, token);
+        return token;
+    }
+
+    async findPasswordResetTokenByHash(hash: string): Promise<PasswordResetTokenRow | null> {
+        return (
+            [...this.passwordResetTokens.values()].find((token) => token.tokenHash === hash) ?? null
+        );
+    }
+
+    async markPasswordResetTokenUsed(id: string, usedAt: Date): Promise<void> {
+        const token = this.passwordResetTokens.get(id);
+        if (token) {
+            this.passwordResetTokens.set(id, { ...token, usedAt });
+        }
+    }
+
+    async deleteUnusedPasswordResetTokensForUser(userId: string): Promise<void> {
+        for (const [id, token] of this.passwordResetTokens) {
+            if (token.userId === userId && token.usedAt === null) {
+                this.passwordResetTokens.delete(id);
+            }
+        }
+    }
+
+    private patchUser(userId: string, patch: Partial<UserRow>): UserRow {
         const user = this.users.get(userId);
         if (!user) {
             throw new Error("User not found.");
         }
 
-        const updated = { ...user, theme, updatedAt: new Date() };
+        const updated = { ...user, ...patch, updatedAt: new Date() };
         this.users.set(userId, updated);
         return updated;
     }

@@ -8,12 +8,17 @@ import {
     signAccessToken,
     verifyAccessToken,
 } from "../../lib/tokens.js";
+import { defaultMailer } from "../mail/mail.service.js";
+import type { Mailer } from "../mail/mail.types.js";
 import {
     accountDisabledError,
     emailAlreadyExistsError,
+    expiredEmailTokenError,
     invalidCredentialsError,
+    invalidEmailTokenError,
     invalidRefreshTokenError,
     unauthenticatedError,
+    usedEmailTokenError,
 } from "./auth.errors.js";
 import type { AuthRepository } from "./auth.repository.js";
 import type { LoginInput, RegisterInput } from "./auth.schemas.js";
@@ -29,8 +34,20 @@ import type {
 } from "./auth.types.js";
 import { toAuthenticatedUser } from "./auth.types.js";
 
+export const FORGOT_PASSWORD_MESSAGE =
+    "If an account exists for this email, a reset email has been sent.";
+
+export const EMAIL_VERIFICATION_REQUEST_MESSAGE =
+    "If your email still needs verification, we have sent a link.";
+
+const EMAIL_VERIFICATION_HOURS = 24;
+const PASSWORD_RESET_HOURS = 1;
+
 export class AuthService {
-    constructor(private readonly repository: AuthRepository) {}
+    constructor(
+        private readonly repository: AuthRepository,
+        private readonly mailer: Mailer = defaultMailer(),
+    ) {}
 
     async register(input: RegisterInput, context: RequestContext): Promise<AuthTokensResult> {
         const existing = await this.repository.findUserByEmail(input.email);
@@ -50,7 +67,14 @@ export class AuthService {
             deletedAt: null,
         });
 
-        return this.createSessionForUser(created.user, context, created.roles, created.permissions);
+        const session = await this.createSessionForUser(
+            created.user,
+            context,
+            created.roles,
+            created.permissions,
+        );
+        await this.safeSend(() => this.sendRegistrationEmail(created.user));
+        return session;
     }
 
     async login(input: LoginInput, context: RequestContext): Promise<AuthTokensResult> {
@@ -74,7 +98,17 @@ export class AuthService {
             throw invalidCredentialsError();
         }
 
-        return this.createSessionForUser(user, context);
+        const session = await this.createSessionForUser(user, context);
+        await this.safeSend(() =>
+            this.mailer.sendNewLoginEmail({
+                name: user.name,
+                email: user.email,
+                time: new Date().toISOString(),
+                ipAddress: context.ipAddress,
+                userAgent: context.userAgent,
+            }),
+        );
+        return session;
     }
 
     async refresh(refreshToken: string | undefined): Promise<AuthTokensResult> {
@@ -147,6 +181,69 @@ export class AuthService {
         return toAuthenticatedUser(updated, roles, permissions);
     }
 
+    async requestEmailVerification(input: { userId?: string; email?: string }): Promise<void> {
+        const user = input.userId
+            ? await this.repository.findUserById(input.userId)
+            : input.email
+              ? await this.repository.findUserByEmail(input.email)
+              : null;
+
+        if (!user || user.deletedAt !== null || !user.isActive || user.emailVerifiedAt !== null) {
+            return;
+        }
+
+        await this.sendVerificationEmail(user);
+    }
+
+    async verifyEmail(rawToken: string): Promise<AuthenticatedUser> {
+        const token = await this.repository.findEmailVerificationTokenByHash(
+            hashRefreshToken(rawToken),
+        );
+        this.assertTokenUsable(token);
+
+        const user = await this.requireUsableUser(token.userId);
+        const verified = await this.repository.markEmailVerified(user.id);
+        await this.repository.markEmailVerificationTokenUsed(token.id, new Date());
+        const { roles, permissions } = await this.loadUserAuthorization(verified.id);
+        return toAuthenticatedUser(verified, roles, permissions);
+    }
+
+    async forgotPassword(email: string): Promise<void> {
+        const user = await this.repository.findUserByEmail(email);
+        if (!user || user.deletedAt !== null || !user.isActive || !user.passwordHash) {
+            return;
+        }
+
+        const token = await this.issuePasswordResetToken(user.id);
+        await this.safeSend(() =>
+            this.mailer.sendPasswordResetEmail({
+                name: user.name,
+                email: user.email,
+                actionUrl: `${getApiEnv().appUrl}/reset-password?token=${token}`,
+            }),
+        );
+    }
+
+    async resetPassword(rawToken: string, password: string): Promise<void> {
+        const token = await this.repository.findPasswordResetTokenByHash(
+            hashRefreshToken(rawToken),
+        );
+        this.assertTokenUsable(token);
+
+        const user = await this.requireUsableUser(token.userId);
+        const passwordHash = await hashPassword(password);
+        await this.repository.updateUserPassword(user.id, passwordHash);
+        await this.repository.markPasswordResetTokenUsed(token.id, new Date());
+        await this.repository.deleteUnusedPasswordResetTokensForUser(user.id);
+        await this.repository.deleteSessionsForUser(user.id);
+        await this.safeSend(() =>
+            this.mailer.sendPasswordChangedEmail({
+                name: user.name,
+                email: user.email,
+            }),
+        );
+    }
+
     async deleteExpiredSessions(): Promise<number> {
         return this.repository.deleteExpiredSessions();
     }
@@ -207,6 +304,82 @@ export class AuthService {
             }),
             refreshToken,
         };
+    }
+
+    private async sendRegistrationEmail(user: UserRow): Promise<void> {
+        const token = await this.issueEmailVerificationToken(user.id);
+        await this.safeSend(() =>
+            this.mailer.sendWelcomeAndVerificationEmail({
+                name: user.name,
+                email: user.email,
+                actionUrl: `${getApiEnv().appUrl}/verify-email?token=${token}`,
+            }),
+        );
+    }
+
+    private async sendVerificationEmail(user: UserRow): Promise<void> {
+        const token = await this.issueEmailVerificationToken(user.id);
+        await this.safeSend(() =>
+            this.mailer.sendVerificationEmail({
+                name: user.name,
+                email: user.email,
+                actionUrl: `${getApiEnv().appUrl}/verify-email?token=${token}`,
+            }),
+        );
+    }
+
+    private async issueEmailVerificationToken(userId: string): Promise<string> {
+        await this.repository.deleteUnusedEmailVerificationTokensForUser(userId);
+        const token = generateRefreshToken();
+        await this.repository.createEmailVerificationToken({
+            id: randomUUID(),
+            userId,
+            tokenHash: hashRefreshToken(token),
+            expiresAt: this.hoursFromNow(EMAIL_VERIFICATION_HOURS),
+            usedAt: null,
+        });
+        return token;
+    }
+
+    private async issuePasswordResetToken(userId: string): Promise<string> {
+        await this.repository.deleteUnusedPasswordResetTokensForUser(userId);
+        const token = generateRefreshToken();
+        await this.repository.createPasswordResetToken({
+            id: randomUUID(),
+            userId,
+            tokenHash: hashRefreshToken(token),
+            expiresAt: this.hoursFromNow(PASSWORD_RESET_HOURS),
+            usedAt: null,
+        });
+        return token;
+    }
+
+    private assertTokenUsable<T extends { expiresAt: Date; usedAt: Date | null }>(
+        token: T | null,
+    ): asserts token is T {
+        if (!token) {
+            throw invalidEmailTokenError();
+        }
+
+        if (token.usedAt) {
+            throw usedEmailTokenError();
+        }
+
+        if (token.expiresAt.getTime() <= Date.now()) {
+            throw expiredEmailTokenError();
+        }
+    }
+
+    private hoursFromNow(hours: number): Date {
+        return new Date(Date.now() + hours * 60 * 60 * 1000);
+    }
+
+    private async safeSend(task: () => Promise<void>): Promise<void> {
+        try {
+            await task();
+        } catch {
+            // Email delivery must not undo a successful auth side effect.
+        }
     }
 
     private async requireUsableUser(userId: string): Promise<UserRow> {

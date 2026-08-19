@@ -1,7 +1,11 @@
 import type {
     AuthSessionRow,
+    EmailVerificationTokenRow,
     NewAuthSessionRow,
+    NewEmailVerificationTokenRow,
+    NewPasswordResetTokenRow,
     NewUserRow,
+    PasswordResetTokenRow,
     PermissionName,
     PermissionRow,
     RoleRow,
@@ -49,4 +53,16 @@ export interface AuthRepository {
     deleteExpiredSessions(): Promise<number>;
     deleteSessionsForUser(userId: string): Promise<number>;
     updateUserTheme(userId: string, theme: ThemePreference): Promise<UserRow>;
+    updateUserPassword(userId: string, passwordHash: string): Promise<UserRow>;
+    markEmailVerified(userId: string, verifiedAt?: Date): Promise<UserRow>;
+    createEmailVerificationToken(
+        data: NewEmailVerificationTokenRow,
+    ): Promise<EmailVerificationTokenRow>;
+    findEmailVerificationTokenByHash(hash: string): Promise<EmailVerificationTokenRow | null>;
+    markEmailVerificationTokenUsed(id: string, usedAt: Date): Promise<void>;
+    deleteUnusedEmailVerificationTokensForUser(userId: string): Promise<void>;
+    createPasswordResetToken(data: NewPasswordResetTokenRow): Promise<PasswordResetTokenRow>;
+    findPasswordResetTokenByHash(hash: string): Promise<PasswordResetTokenRow | null>;
+    markPasswordResetTokenUsed(id: string, usedAt: Date): Promise<void>;
+    deleteUnusedPasswordResetTokensForUser(userId: string): Promise<void>;
 }

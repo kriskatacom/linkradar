@@ -55,7 +55,7 @@ export function RegisterPage() {
                 password: values.password,
             }).unwrap();
             await fetchMe().unwrap();
-            toast.success("Account created successfully.");
+            toast.success("Account created. Check your email to verify your address.");
             navigate("/app/dashboard");
         } catch (error) {
             const parsed = getApiError(error);

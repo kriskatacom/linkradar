@@ -15,8 +15,11 @@ import { SYSTEM_PERMISSIONS } from "@/features/auth/system-permissions";
 import { DashboardPage } from "@/features/dashboard/pages/dashboard-page";
 import { PlaceholderPage } from "@/features/dashboard/pages/placeholder-page";
 import { SettingsPage } from "@/features/settings/pages/settings-page";
+import { ForgotPasswordPage } from "@/features/auth/pages/forgot-password-page";
 import { LoginPage } from "@/features/auth/pages/login-page";
 import { RegisterPage } from "@/features/auth/pages/register-page";
+import { ResetPasswordPage } from "@/features/auth/pages/reset-password-page";
+import { VerifyEmailPage } from "@/features/auth/pages/verify-email-page";
 import { AddSitePage } from "@/features/sites/pages/add-site-page";
 import { SiteDetailPage } from "@/features/sites/pages/site-detail-page";
 import { SiteSettingsPage } from "@/features/sites/pages/site-settings-page";
@@ -30,6 +33,7 @@ export const router = createBrowserRouter([
         children: [
             { path: "/login", element: <LoginPage /> },
             { path: "/register", element: <RegisterPage /> },
+            { path: "/forgot-password", element: <ForgotPasswordPage /> },
         ],
     },
     {
@@ -98,6 +102,8 @@ export const router = createBrowserRouter([
             },
         ],
     },
+    { path: "/verify-email", element: <VerifyEmailPage /> },
+    { path: "/reset-password", element: <ResetPasswordPage /> },
     {
         path: "*",
         element: <Navigate to="/app/dashboard" replace />,
